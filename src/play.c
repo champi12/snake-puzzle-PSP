@@ -328,59 +328,65 @@ static int head_frame(const GState *s)
     return SK_IDLE;
 }
 
-/* Dibujo de cada parte como SnakeController.GoStraight / UpdateBodyMoveDirect: la serpiente gira como una pieza
- * rigida. La panza (el lado amarillo) va siempre a la derecha del sentido de la marcha: hacia la derecha, abajo;
- * hacia arriba, a la derecha; hacia la izquierda queda panza arriba (GoStraight: flipX + flipY, la pieza girada 180
- * grados) y la cabeza tambien. Las piezas no se deforman: solo giro y espejo. */
-#define right_of right_of_dir
-static int belly_of(int heading, int rev) { return rev ? dir_opposite(right_of(heading)) : right_of(heading); }
+/* Dibujo de cada parte = SnakeController.UpdateVisuals del original. La tabla sale de ejecutar esa funcion (codigo
+ * ARM64 del APK) en un emulador con cada forma posible (tools/decompile/emu.py visuals): sprite, flipX/flipY y giro.
+ * Tonos: la cabeza y las partes impares con el juego claro (body_1, colorSetIndex 1), las pares con el oscuro
+ * (body_2): Initialize y Grow los van alternando (useColor1Next) y cada parte conserva el suyo. */
+#define RX FLIP_X
+#define RY FLIP_Y
+#define RXY (FLIP_X | FLIP_Y)
 
-/* cabeza y cola: el sprite base va hacia la derecha con la panza abajo */
-static void draw_oriented(int id, float px, float py, float sc, int heading, int belly, uint32_t col)
-{
-    int rot = 0, flip = 0;
-    switch (heading) {
-    case D_RIGHT: flip = belly == D_UP ? FLIP_Y : 0; break;
-    case D_LEFT: flip = belly == D_UP ? FLIP_X | FLIP_Y : FLIP_X; break;   /* panza arriba: girada 180 */
-    case D_UP: rot = 1; flip = belly == D_LEFT ? FLIP_Y : 0; break;
-    default: rot = 1; flip = FLIP_X | (belly == D_LEFT ? FLIP_Y : 0); break;
-    }
-    gfx_sprite(&skin_sheet, skin_id(id), px, py, sc, rot, flip, col);
-}
+/* giro de Unity (eulerAngles.z, grados a la izquierda) -> giros de 90 de gfx_sprite */
+static int rot_of_z(int z) { return z == 90 ? 1 : z == -90 ? 3 : z == 180 ? 2 : 0; }
 
 static void draw_part(int i, const GState *s, float px, float py, uint32_t col, float size)
 {
     int n = s->n;
     float sc = cs * size;
-    int rev = 0;   /* panza a la derecha de la marcha en todas las partes (ver arriba) */
+    int dark = i > 0 && !(i & 1);
+    int H = dark ? SK_H2 : SK_H1, V = dark ? SK_V2 : SK_V1, IN_L = dark ? SK_C2 : SK_C1, OUT_R = dark ? SK_O2 : SK_O1,
+        T = dark ? SK_T2 : SK_T1;
     if (i == 0) {
-        draw_oriented(head_frame(s), px, py, sc, s->dir, belly_of(s->dir, rev), col);
+        /* cabeza: derecha tal cual, izquierda flipX+flipY, arriba flipX+flipY y -90, abajo flipX+flipY y +90 */
+        int d = s->dir, fr = head_frame(s);
+        if (d == D_RIGHT) gfx_sprite(&skin_sheet, skin_id(fr), px, py, sc, 0, 0, col);
+        else if (d == D_LEFT) gfx_sprite(&skin_sheet, skin_id(fr), px, py, sc, 0, RXY, col);
+        else if (d == D_UP) gfx_sprite(&skin_sheet, skin_id(fr), px, py, sc, rot_of_z(-90), RXY, col);
+        else gfx_sprite(&skin_sheet, skin_id(fr), px, py, sc, rot_of_z(90), RXY, col);
         return;
     }
-    int a = dir_between(s->s[i], s->s[i - 1]);                     /* hacia la cabeza (sentido de la marcha) */
-    int b = i + 1 < n ? dir_between(s->s[i], s->s[i + 1]) : -1;   /* hacia la cola */
-    if (a < 0 && b >= 0) a = dir_opposite(b);                      /* paso por un portal: se dibuja recto */
-    if (a < 0) a = D_RIGHT;
+    int out = dir_between(s->s[i], s->s[i - 1]);                    /* de esta parte hacia la cabeza */
+    int back = i + 1 < n ? dir_between(s->s[i], s->s[i + 1]) : -1;  /* de esta parte hacia la cola */
+    if (out < 0 && back >= 0) out = dir_opposite(back);              /* paso por un portal: recto */
+    if (out < 0) out = D_RIGHT;
     if (i == n - 1) {
-        draw_oriented(SK_T2, px, py, sc, a, belly_of(a, rev), col);
+        /* cola, segun la direccion de la cola hacia la parte siguiente */
+        if (out == D_RIGHT) gfx_sprite(&skin_sheet, skin_id(T), px, py, sc, 0, 0, col);
+        else if (out == D_LEFT) gfx_sprite(&skin_sheet, skin_id(T), px, py, sc, 0, RXY, col);
+        else if (out == D_UP) gfx_sprite(&skin_sheet, skin_id(T), px, py, sc, rot_of_z(-90), RXY, col);
+        else gfx_sprite(&skin_sheet, skin_id(T), px, py, sc, rot_of_z(90), RXY, col);
         return;
     }
-    if (b < 0) b = dir_opposite(a);
-    if (b == dir_opposite(a)) {
-        int belly = belly_of(a, rev);
-        /* girada 180 grados = flipX + flipY, como GoStraight */
-        if (a == D_LEFT || a == D_RIGHT) gfx_sprite(&skin_sheet, skin_id(SK_H2), px, py, sc, 0, belly == D_UP ? FLIP_X | FLIP_Y : 0, col);
-        else gfx_sprite(&skin_sheet, skin_id(SK_V2), px, py, sc, 0, belly == D_LEFT ? FLIP_X | FLIP_Y : 0, col);
-        return;
+    if (back < 0) back = dir_opposite(out);
+    int in = dir_opposite(back);                                     /* de la parte de atras hacia esta */
+    int id = H, flip = 0;
+    if (in == out) {
+        if (in == D_RIGHT) id = H;
+        else if (in == D_LEFT) { id = H; flip = RXY; }
+        else if (in == D_UP) id = V;
+        else { id = V; flip = RXY; }
+    } else {
+        /* esquinas: [llega][sale] */
+        static const struct { uint8_t in, out, outer, flip; } T8[] = {
+            {D_RIGHT, D_UP, 1, 0}, {D_RIGHT, D_DOWN, 0, RX}, {D_LEFT, D_UP, 0, RY}, {D_LEFT, D_DOWN, 1, RXY},
+            {D_UP, D_RIGHT, 0, 0}, {D_UP, D_LEFT, 1, RY}, {D_DOWN, D_RIGHT, 1, RX}, {D_DOWN, D_LEFT, 0, RXY}};
+        for (int k = 0; k < 8; k++)
+            if (T8[k].in == in && T8[k].out == out) {
+                id = T8[k].outer ? OUT_R : IN_L;
+                flip = T8[k].flip;
+            }
     }
-    /* esquina: la panza va por dentro de la curva (bodyCorner_TopLeft, in_L) o por fuera (TopRight, out_R) */
-    int hin = dir_opposite(b), right_turn = a == right_of(hin);
-    int inner = right_turn ? !rev : rev;
-    int r = (a == D_RIGHT || b == D_RIGHT), d = (a == D_DOWN || b == D_DOWN);
-    if (inner) /* in_L une derecha y abajo */
-        gfx_sprite(&skin_sheet, skin_id(SK_C2), px, py, sc, 0, (r ? 0 : FLIP_X) | (d ? 0 : FLIP_Y), col);
-    else       /* out_R une arriba e izquierda */
-        gfx_sprite(&skin_sheet, skin_id(SK_O2), px, py, sc, 0, (r ? FLIP_X : 0) | (d ? FLIP_Y : 0), col);
+    gfx_sprite(&skin_sheet, skin_id(id), px, py, sc, 0, flip, col);
 }
 
 static void draw_snake(const GState *from, const GState *to, float t, int pulled)
