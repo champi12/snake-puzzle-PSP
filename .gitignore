@@ -25,3 +25,5 @@ exhandler/*.o
 exhandler/loader/*.prx
 exhandler/loader/*.elf
 exhandler/loader/*.o
+data.new/
+juego/
