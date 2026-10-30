@@ -64,6 +64,8 @@ void dbg_trace_start(const char *why, int frames);
 #define DBG_PHASE_main(s) (dbg_phase_main = (s), dbg_tracing ? dbg_trace(s) : (void)0)
 
 #if DEVLOG
+const char *dlog_path(void);     /* ruta de devlog.txt (para el medidor de SELECT) */
+int dlog_ok(void);               /* 1 si se ha podido escribir */
 void dlog_init(void);
 void dlog_boot_done(void);       /* fin del arranque: el vigilante pasa de 10 s a 3 s de margen */
 void dlog(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
@@ -71,6 +73,8 @@ void dlog_error(const char *fmt, ...) __attribute__((format(printf, 1, 2)));   /
 void dlog_flush(void);
 void dlog_close(void);
 #else
+#define dlog_path() "desactivado (version publica: compila con DEVLOG=1)"
+#define dlog_ok() 0
 #define dlog_init() ((void)0)
 #define dlog_boot_done() ((void)0)
 #define dlog(...) ((void)0)

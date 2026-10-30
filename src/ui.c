@@ -109,6 +109,9 @@ static void home_draw(void)
     }
     counters(SCR_H - 40);
     help(BTN_X " Aceptar   Cruceta Elegir");
+#if DEVLOG
+    text_draw(SCR_W - 4, SCR_H - 30, FONT_S, "VERSION DE PRUEBAS (devlog)", RGBA(255, 230, 120, 255), 2);
+#endif
 }
 
 static void home_input(unsigned in)

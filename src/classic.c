@@ -181,11 +181,18 @@ void classic_draw(void)
     st.n = n;
     st.dir = dir;
     st.dead = !alive;
+    /* el cuerpo se queda en casillas enteras (con sus esquinas) y solo se deslizan la cabeza y la cola: la
+     * serpiente avanza sin parar y, si se deslizara cada parte, a mitad de paso las curvas quedarian cortadas */
     for (int i = 0; i < n; i++) {
         float fx = body[i].x, fy = body[i].y;
-        if (i < prev_n) {
+        int slide = (i == 0 || (i == n - 1 && n == prev_n)) && i < prev_n;
+        /* la cola solo se desliza en linea recta: en una curva se separaria del cuerpo */
+        if (slide && i == n - 1 && n > 1 &&
+            (body[i].x - prev_body[i].x != body[i - 1].x - body[i].x || body[i].y - prev_body[i].y != body[i - 1].y - body[i].y))
+            slide = 0;
+        if (slide) {
             float dx = body[i].x - prev_body[i].x, dy = body[i].y - prev_body[i].y;
-            if (fabsf(dx) + fabsf(dy) <= 1.01f) {
+            if (fabsf(dx) + fabsf(dy) <= 1.01f) {   /* al cruzar un borde no se desliza */
                 fx = prev_body[i].x + dx * t;
                 fy = prev_body[i].y + dy * t;
             }

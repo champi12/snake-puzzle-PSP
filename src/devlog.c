@@ -111,6 +111,10 @@ static unsigned long long t_start;
 static SceUID wdthid = -1;
 static volatile int boot_done;
 
+static volatile int write_ok = -1;
+const char *dlog_path(void) { return path; }
+int dlog_ok(void) { return write_ok > 0; }
+
 static int writer_thread(SceSize a, void *p)
 {
     fpu_no_exceptions();
@@ -120,7 +124,8 @@ static int writer_thread(SceSize a, void *p)
         if (b < 0) continue;
         /* abrir, escribir y cerrar: si el juego se cuelga, lo escrito ya esta en la tarjeta */
         SceUID fd = sceIoOpen(path, PSP_O_WRONLY | PSP_O_CREAT | PSP_O_APPEND, 0777);
-        if (fd >= 0) { sceIoWrite(fd, bufs[b], blen[b]); sceIoClose(fd); }
+        if (fd >= 0) { write_ok = sceIoWrite(fd, bufs[b], blen[b]) > 0; sceIoClose(fd); }
+        else write_ok = 0;
         blen[b] = 0;
         wpend = -1;
     }

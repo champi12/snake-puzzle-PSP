@@ -143,7 +143,7 @@ static void perf_draw(int page, float cpu_ms, float wait_ms, float fps)
                  (unsigned)(gstat.vram_fb + gstat.vram_tex) / 1024);
         text_draw(6, 60, FONT_S, b, ok_col(rf > vf ? rf : vf), 0);
     } else if (page == 2) {
-        gfx_fill(0, 24, 330, 148, RGBA(0, 0, 0, 170));
+        gfx_fill(0, 24, 480, 164, RGBA(0, 0, 0, 170));
         float y = 28;
         snprintf(b, sizeof(b), "RAM monton: %u / %u KB (pico %u)", m->heap_used / 1024, m->heap_total / 1024, m->heap_peak / 1024);
         text_draw(6, y, FONT_S, b, ok_col(m->heap_total ? (float)m->heap_peak / m->heap_total : 0), 0);
@@ -170,6 +170,9 @@ static void perf_draw(int page, float cpu_ms, float wait_ms, float fps)
         text_draw(6, y, FONT_S, b, WHITE, 0);
         y += 16;
         text_draw(6, y, FONT_S, audio_status(), WHITE, 0);
+        y += 16;
+        snprintf(b, sizeof(b), "Devlog: %s%s", dlog_path(), DEVLOG ? (dlog_ok() ? " (escribiendo)" : " (NO se puede escribir)") : "");
+        text_draw(6, y, FONT_S, b, DEVLOG && !dlog_ok() ? RGBA(255, 90, 90, 255) : WHITE, 0);
     } else if (page == 3) {
         gfx_fill(0, 24, 280, 100, RGBA(0, 0, 0, 170));
         text_draw(6, 26, FONT_S, "ms por fotograma (verde < 16,7 | amarillo < 33,3)", WHITE, 0);

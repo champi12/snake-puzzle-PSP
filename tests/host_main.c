@@ -183,8 +183,14 @@ int main(int argc, char **argv)
     shot("ajustes");
     classic_start();
     frames(2, IN_UP);
-    frames(200, 0);
+    frames(40, 0);
+    frames(2, IN_LEFT);
+    frames(30, 0);
+    frames(2, IN_DOWN);
+    frames(20, 0);
     shot("clasico");
+    frames(4, 0);
+    shot("clasico_b");
     frames(2000, 0);
     shot("clasico_fin");
     printf("pantalla final %s, nivel en curso %d, %d superados, %d fichas, %d pistas\n", dbg_state_name(gstate),

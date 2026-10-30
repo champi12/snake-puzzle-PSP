@@ -8,8 +8,9 @@
 #   ./actualizar.sh juego.xapk "/mnt/c/Users/Joan jimenez/Desktop"
 #                                          ademas elige a que carpeta se copia la carpeta PSP
 #
-# Sale la version publica (sin devlog). Para la de pruebas (devlog.txt y crash.txt): DEVLOG=1 ./actualizar.sh
+# Sale la version de PRUEBAS (devlog.txt y crash.txt). Para la publica, sin devlog: DEVLOG=0 ./actualizar.sh
 set -e
+export DEVLOG=${DEVLOG:-1}
 cd "$(dirname "$0")"
 
 if [ -z "$SNK_ACTUALIZADO" ]; then
