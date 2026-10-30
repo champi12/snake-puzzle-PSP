@@ -284,7 +284,8 @@ void dlog_init(void)
     t_start = sceKernelGetSystemTimeWide();
     /* los hilos no tienen directorio actual en la PSP: ruta absoluta */
     char dir[160];
-    if (!getcwd(dir, sizeof(dir))) strcpy(dir, "ms0:/PSP/GAME/SNAKEPZL");
+    extern const char *plat_write_dir(void);
+    snprintf(dir, sizeof(dir), "%s", plat_write_dir());
     /* se guardan los 3 ultimos: devlog.txt (este), devlog_prev.txt y devlog_prev2.txt */
     char prev[192], prev2[192];
     snprintf(trace_path, sizeof(trace_path), "%s/trace.txt", dir);

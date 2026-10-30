@@ -115,23 +115,34 @@ int bg_load(Tex *t, const char *path)
 }
 
 /* ---------------------------------------------------------------- vertices */
-static void quad(const Sheet *s, int id, float cx, float cy, float c, float sn, float scale, int flipx, uint32_t color)
+static void quad(const Sheet *s, int id, float cx, float cy, float c, float sn, float scale, int flip, uint32_t color)
 {
     if (!s || id < 0 || id >= s->nspr) return;
     const Spr *r = &s->spr[id];
     const Tex *t = &s->pages[r->page];
     float x0 = r->ox / 256.0f * scale, y0 = r->oy / 256.0f * scale;
     float x1 = x0 + r->uw / 256.0f * scale, y1 = y0 + r->uh / 256.0f * scale;
+    int flipx = flip & 1, flipy = flip & 2;
     if (flipx) {
         float a = -x1;
         x1 = -x0;
         x0 = a;
+    }
+    if (flipy) {
+        float a = -y1;
+        y1 = -y0;
+        y0 = a;
     }
     float u0 = r->x, v0 = r->y, u1 = r->x + r->w, v1 = r->y + r->h;
     if (flipx) {
         float a = u0;
         u0 = u1;
         u1 = a;
+    }
+    if (flipy) {
+        float a = v0;
+        v0 = v1;
+        v1 = a;
     }
     /* tira: arriba-izq, abajo-izq, arriba-der, abajo-der; giro con y de pantalla hacia abajo */
     float lx[4] = {x0, x0, x1, x1}, ly[4] = {y0, y1, y0, y1};
@@ -147,10 +158,10 @@ static void quad(const Sheet *s, int id, float cx, float cy, float c, float sn, 
     be_quad(v, color);
 }
 
-void gfx_sprite(const Sheet *s, int id, float x, float y, float scale, int rot, int flipx, uint32_t color)
+void gfx_sprite(const Sheet *s, int id, float x, float y, float scale, int rot, int flip, uint32_t color)
 {
     static const float C[4] = {1, 0, -1, 0}, S[4] = {0, 1, 0, -1};
-    quad(s, id, x, y, C[rot & 3], S[rot & 3], scale, flipx, color);
+    quad(s, id, x, y, C[rot & 3], S[rot & 3], scale, flip, color);
 }
 
 void gfx_sprite_angle(const Sheet *s, int id, float x, float y, float scale, float ang, uint32_t color)

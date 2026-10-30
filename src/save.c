@@ -25,10 +25,18 @@ void save_defaults(void)
     sv.sound = sv.music = 1;
 }
 
+static char save_path[200], tmp_path[200];
+static void save_paths(void)
+{
+    snprintf(save_path, sizeof(save_path), "%s/save.dat", plat_write_dir());
+    snprintf(tmp_path, sizeof(tmp_path), "%s/save.tmp", plat_write_dir());
+}
+
 int save_load(void)
 {
     save_defaults();
-    FILE *f = fopen("save.dat", "rb");
+    save_paths();
+    FILE *f = fopen(save_path, "rb");
     if (!f) return -1;
     Save tmp;
     int ok = fread(&tmp, 1, sizeof(tmp), f) == sizeof(tmp) && tmp.magic == SAVE_MAGIC && tmp.version == SAVE_VERSION;
@@ -44,15 +52,16 @@ int save_load(void)
 void game_save(void)
 {
     /* primero a un archivo aparte: si se apaga la consola a medias, el anterior sigue bien */
-    FILE *f = fopen("save.tmp", "wb");
+    if (!save_path[0]) save_paths();
+    FILE *f = fopen(tmp_path, "wb");
     if (!f) {
         dlog_error("no se pudo guardar la partida");
         return;
     }
     fwrite(&sv, 1, sizeof(sv), f);
     fclose(f);
-    remove("save.dat");
-    rename("save.tmp", "save.dat");
+    remove(save_path);
+    rename(tmp_path, save_path);
 }
 
 int meta_load(const char *path)

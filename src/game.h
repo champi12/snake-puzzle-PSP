@@ -137,5 +137,6 @@ unsigned plat_ms(void);
 unsigned plat_us(void);
 void plat_date(int *y, int *m, int *d);
 void plat_exit(void);
+const char *plat_write_dir(void);   /* carpeta donde se puede escribir (partida, devlog) */
 
 #endif

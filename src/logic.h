@@ -22,6 +22,8 @@ typedef struct {
     int n;                     /* largo de la serpiente */
     Cell s[MAX_SNAKE];         /* s[0] es la cabeza */
     int dir;                   /* hacia donde mira la cabeza */
+    uint8_t rev[MAX_SNAKE];    /* BodyPartInfo.isReversed de cada parte: viaja con el cuerpo */
+    int8_t last_in;            /* SnakeController.lastInputDirection */
     int nstone;
     Cell st[MAX_STONE];
     uint8_t st_alive[MAX_STONE];

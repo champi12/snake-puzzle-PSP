@@ -21,6 +21,8 @@
 #define CMAX (CW * CH)
 
 static Cell body[CMAX], prev_body[CMAX];
+static uint8_t rev[CMAX];          /* BodyPartInfo.isReversed (ver logic.c) */
+static int last_in;
 static int n, prev_n, dir, next_dir, score, alive, apple_x, apple_y, started;
 static float step_t, step_len, time_s, dead_t;
 static int rank_pos, rank_reward;
@@ -64,6 +66,8 @@ void classic_start(void)
     n = 3;
     dir = next_dir = D_RIGHT;
     for (int i = 0; i < n; i++) body[i] = (Cell){(int8_t)(5 - i), CH / 2};
+    memset(rev, 0, sizeof(rev));
+    last_in = D_RIGHT;
     memcpy(prev_body, body, sizeof(body));
     prev_n = n;
     score = 0;
@@ -146,7 +150,10 @@ void classic_update(float dt)
         }
     if (grow && n < CMAX) n++;
     memmove(&body[1], &body[0], sizeof(Cell) * (n - 1));
+    memmove(&rev[1], &rev[0], n - 1);
     body[0] = (Cell){(int8_t)x, (int8_t)y};
+    rev[0] = dir == D_LEFT || (dir == D_DOWN && last_in == D_LEFT);
+    last_in = dir;
     if (grow) {
         score++;
         play_sfx(SFX_EAT);
@@ -184,6 +191,7 @@ void classic_draw(void)
             }
         }
         st.s[i] = body[i];
+        st.rev[i] = rev[i];
         xs[i] = ox + (fx + 0.5f) * cs;
         ys[i] = oy + (CH - 1 - fy + 0.5f) * cs;
     }

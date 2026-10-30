@@ -57,8 +57,11 @@ void gfx_shutdown(void);
 #define RGBA(r, g, b, a) ((uint32_t)(r) | ((uint32_t)(g) << 8) | ((uint32_t)(b) << 16) | ((uint32_t)(a) << 24))
 #define WHITE 0xffffffffu
 
-/* sprite con su anclaje en (x, y); scale = pixeles por unidad; rot = giros de 90 grados a la izquierda */
-void gfx_sprite(const Sheet *s, int id, float x, float y, float scale, int rot, int flipx, uint32_t color);
+/* sprite con su anclaje en (x, y); scale = pixeles por unidad; rot = giros de 90 grados a la izquierda;
+ * flip: FLIP_X y/o FLIP_Y (espejo antes del giro, como SpriteRenderer.flipX/flipY) */
+#define FLIP_X 1
+#define FLIP_Y 2
+void gfx_sprite(const Sheet *s, int id, float x, float y, float scale, int rot, int flip, uint32_t color);
 /* igual pero con un angulo cualquiera (radianes, a la izquierda) */
 void gfx_sprite_angle(const Sheet *s, int id, float x, float y, float scale, float ang, uint32_t color);
 /* sprite estirado a un rectangulo de pantalla */

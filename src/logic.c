@@ -126,6 +126,8 @@ void logic_load(GLevel *g, GState *s, const Level *L)
     s->n = 1;
     s->s[0] = (Cell){L->sx, L->sy};
     s->dir = dir;
+    s->last_in = dir;
+    memset(s->rev, dir == D_LEFT, sizeof(s->rev));   /* Initialize: isReversed = direction.x < 0 */
     for (int i = 1; i < 3; i++) {
         if (i == 2) {
             if (L->flags & SF_SECOND_RIGHT) { ox = -1; oy = 0; }
@@ -297,10 +299,15 @@ int logic_in_gate(const GLevel *g, const GState *s)
     return b != gi && !(s->s[1].x == g->gate[b].x && s->s[1].y == g->gate[b].y);
 }
 
-static void shift(GState *s, int x, int y)
+/* SnakeController.Move: isReversed = izquierda, o abajo si el paso anterior fue a la izquierda; la parte nueva de la
+ * cabeza lo guarda y las demas conservan el suyo (BodyPartInfo.previousIsReversed) */
+static void shift(GState *s, int x, int y, int dir)
 {
     memmove(&s->s[1], &s->s[0], sizeof(Cell) * (s->n - 1));
+    memmove(&s->rev[1], &s->rev[0], s->n - 1);
     s->s[0] = (Cell){x, y};
+    s->rev[0] = dir == D_LEFT || (dir == D_DOWN && s->last_in == D_LEFT);
+    s->last_in = dir;
 }
 
 /* SnakeController.HandleMovement */
@@ -312,7 +319,7 @@ int logic_move(const GLevel *g, GState *s, int dir, GSteps *o)
     /* dentro de la entrada de un portal: cualquier boton sigue por el otro (TeleportGate) */
     if (logic_in_gate(g, s)) {
         int b = g->gate_partner[logic_gate_at(g, hx, hy)];
-        shift(s, g->gate[b].x, g->gate[b].y);
+        shift(s, g->gate[b].x, g->gate[b].y, dir_opposite(g->gate_dir[b]));
         s->dir = dir_opposite(g->gate_dir[b]);
         push_step(o, STEP_MOVE, s);
         physics(g, s, o);
@@ -322,7 +329,7 @@ int logic_move(const GLevel *g, GState *s, int dir, GSteps *o)
     /* el rayo choca con el cuerpo (capa SnakeBody) o con una pared (etiqueta Wall) */
     if (snake_at(s, tx, ty, 0, s->n) >= 0 || solid(g, tx, ty) || logic_beam_at(g, s, tx, ty) >= 0) return MV_BLOCKED;
     if (is_goal(g, tx, ty)) {   /* etiqueta Goal/Mask: StartAutoMove hacia el portal y LevelComplete */
-        shift(s, tx, ty);
+        shift(s, tx, ty, dir);
         s->dir = dir;
         s->win = 1;
         push_step(o, STEP_MOVE, s);
@@ -332,7 +339,7 @@ int logic_move(const GLevel *g, GState *s, int dir, GSteps *o)
     if (ai >= 0) {   /* etiqueta Apple: EatApple + Grow(isDouble) */
         s->apple_alive[ai] = 0;
         if (s->n < MAX_SNAKE) s->n++;
-        shift(s, tx, ty);
+        shift(s, tx, ty, dir);
         s->dir = dir;
         if (g->apple_double[ai] && s->n < MAX_SNAKE && s->n >= 2) {
             /* GetDirectionTailGrow: el segmento de mas sale detras de la cola */
@@ -343,6 +350,7 @@ int logic_move(const GLevel *g, GState *s, int dir, GSteps *o)
                 if (solid(g, cx, cy) || snake_at(s, cx, cy, 0, s->n) >= 0 || logic_stone_at(s, cx, cy) >= 0 ||
                     logic_apple_at(g, s, cx, cy) >= 0)
                     continue;
+                s->rev[s->n] = s->rev[s->n - 1];
                 s->s[s->n++] = (Cell){cx, cy};
                 break;
             }
@@ -359,7 +367,7 @@ int logic_move(const GLevel *g, GState *s, int dir, GSteps *o)
     }
     int gi = logic_gate_at(g, tx, ty);
     if (gi >= 0 && dir != g->gate_dir[gi]) return MV_BLOCKED;
-    shift(s, tx, ty);
+    shift(s, tx, ty, dir);
     s->dir = dir;
     if (killc(g, tx, ty)) {   /* etiqueta Kill/Saw: la cabeza entra y muere */
         s->dead = DEAD_TRAP;

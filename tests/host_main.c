@@ -24,6 +24,7 @@ static unsigned fake_ms;
 unsigned plat_ms(void) { return fake_ms; }
 unsigned plat_us(void) { return fake_ms * 1000; }
 void plat_exit(void) {}
+const char *plat_write_dir(void) { return "."; }
 void plat_date(int *y, int *m, int *d)
 {
     const char *e = getenv("HOST_DATE");   /* aaaammdd para probar los eventos */
@@ -112,9 +113,13 @@ int main(int argc, char **argv)
             snprintf(b, sizeof(b), "nivel%d", L.num);
             shot(b);
             if (L.num == 3) {   /* comer y girar: esquinas y cola en todas las direcciones */
-                play_solution(i, 6);
-                frames(30, 0);
-                shot("nivel3_esquinas");
+                for (int k = 1; k <= cur_level.nhint; k++) {
+                    play_solution(i, k);
+                    frames(30, 0);
+                    char b2[32];
+                    snprintf(b2, sizeof(b2), "nivel3_paso%02d", k);
+                    shot(b2);
+                }
             }
             if (L.num == 211) {
                 play_solution(i, 3);

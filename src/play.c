@@ -29,7 +29,7 @@ static GState undo_buf[UNDO_MAX];
 static int undo_n;
 static int moves;
 static float cs, ox, oy;       /* tamano de casilla y origen en pantalla */
-static float blink_t, stuck_t, eat_t, end_t;
+static float blink_t, eat_t, end_t;
 static int queued_dir = -1;
 static float repeat_t;
 static int held_dir = -1;
@@ -38,6 +38,8 @@ static float win_t;            /* entrada en el portal (StartAutoMove) */
 static float goal_ang, saw_ang;
 
 static int animating(void) { return step_i < steps.n; }
+static void face_update(float dt);
+static void face_reset(void);
 
 static void layout(void)
 {
@@ -77,6 +79,7 @@ void play_start(int idx, int hint_mode)
     hint_pos = 0;
     win_t = 0;
     end_t = 0;
+    face_reset();
     layout();
     dbg_game.level = cur_level.num;
     dbg_game.moves = 0;
@@ -97,8 +100,7 @@ static void do_move(int dir)
     GState before = S;
     int r = logic_move(&G, &S, dir, &steps);
     if (r == MV_BLOCKED || r == MV_NONE) {
-        stuck_t = 0.6f;   /* idleToStuckImgs */
-        play_sfx(SFX_STOP);
+        play_sfx(SFX_STOP);   /* chocar solo suena; la cara la pone OnChangeEmoji tras cada paso */
         return;
     }
     if (play_hint) hint_pos++;
@@ -198,7 +200,7 @@ void play_update(float dt)
     goal_ang += dt * 1.6f;
     saw_ang += dt * 6.0f;
     blink_t += dt;
-    if (stuck_t > 0) stuck_t -= dt;
+    face_update(dt);
     if (eat_t > 0) eat_t -= dt;
     if (gstate != GS_PLAY) return;
     if (animating()) {
@@ -259,6 +261,48 @@ static int dir_between(Cell a, Cell b)
 /* giros de 90 grados a la izquierda: derecha 0, arriba 1, izquierda 2, abajo 3 */
 static int rot_of(int d) { return d == D_RIGHT ? 0 : d == D_UP ? 1 : d == D_LEFT ? 2 : 3; }
 
+static int right_of_dir(int d) { return d == D_RIGHT ? D_DOWN : d == D_DOWN ? D_LEFT : d == D_LEFT ? D_UP : D_RIGHT; }
+
+/* SnakeController.OnChangeEmoji: despues de cada paso la cara depende de lo que hay junto a la cabeza: una manzana
+ * delante o a un lado abre la boca (idleToEatImgs); pared, cuerpo o piedra justo delante pone la cara de atascada
+ * (idleToStuckImgs); al cambiar se vuelve a la normal con openToIdleImgs / stuckToIdleImgs */
+enum { FACE_IDLE, FACE_OPEN, FACE_STUCK };
+static int face, face_prev;
+static float face_t;
+
+static int face_wanted(const GState *s)
+{
+    if (s->dead || s->win || !s->n) return FACE_IDLE;
+    int hx = s->s[0].x, hy = s->s[0].y, d = s->dir;
+    int dirs[3] = {d, right_of_dir(d), dir_opposite(right_of_dir(d))};
+    for (int k = 0; k < 3; k++)
+        if (logic_apple_at(&G, s, hx + DIR_DX[dirs[k]], hy + DIR_DY[dirs[k]]) >= 0) return FACE_OPEN;
+    int fx = hx + DIR_DX[d], fy = hy + DIR_DY[d];
+    int solid = fx >= 0 && fy >= 0 && fx < G.w && fy < G.h && G.solid[fy * LV_MAXW + fx];
+    int body = 0;
+    for (int i = 1; i < s->n; i++)
+        if (s->s[i].x == fx && s->s[i].y == fy) body = 1;
+    if (solid || body || logic_stone_at(s, fx, fy) >= 0) return FACE_STUCK;
+    return FACE_IDLE;
+}
+
+static void face_reset(void)
+{
+    face = face_prev = FACE_IDLE;
+    face_t = 1;
+}
+
+static void face_update(float dt)
+{
+    int w = animating() ? face : face_wanted(&S);
+    if (w != face) {
+        face_prev = face;
+        face = w;
+        face_t = 0;
+    }
+    face_t += dt;
+}
+
 static int head_frame(const GState *s)
 {
     static const int blink_seq[] = {SK_IDLE, SK_BLINK, SK_BLINK + 1, SK_BLINK + 2, SK_BLINK + 2, SK_BLINK + 1,
@@ -271,60 +315,72 @@ static int head_frame(const GState *s)
         int f = (int)((0.5f - eat_t) * 30);
         return eat_seq[f < 0 ? 0 : f > 14 ? 14 : f];
     }
-    if (stuck_t > 0) {
-        float t = 0.6f - stuck_t;
-        int f = t < 0.15f ? (int)(t / 0.15f * 4) : t > 0.45f ? 3 - (int)((t - 0.45f) / 0.15f * 4) : 3;
-        return SK_ITS + (f < 0 ? 0 : f > 3 ? 3 : f);
-    }
-    /* manzana delante de la boca: OnNear (idleToEatImgs, boca abierta) */
-    int fx = s->s[0].x + DIR_DX[s->dir], fy = s->s[0].y + DIR_DY[s->dir];
-    if (logic_apple_at(&G, s, fx, fy) >= 0) return SK_ITE + 4;
+    int f = (int)(face_t * 24);   /* las animaciones de la cara van a 24 fotogramas por segundo */
+    if (face == FACE_OPEN) return SK_ITE + (f > 4 ? 4 : f);
+    if (face == FACE_STUCK) return SK_ITS + (f > 3 ? 3 : f);
+    if (face_prev == FACE_OPEN && f < 5) return SK_ITE + 4 - f;
+    if (face_prev == FACE_STUCK && f < 4) return SK_ITS + 3 - f;
     float b = fmodf(blink_t, 3.2f);
     if (b > 2.9f) {
-        int f = (int)((b - 2.9f) / 0.3f * 9);
-        return blink_seq[f > 8 ? 8 : f];
+        int k = (int)((b - 2.9f) / 0.3f * 9);
+        return blink_seq[k > 8 ? 8 : k];
     }
     return SK_IDLE;
 }
 
-/* Todas las piezas tienen la sombra amarilla abajo y a la derecha, asi que no se giran: se usan las dos esquinas del
- * original y sus espejos (como hace SnakeController.UpdateVisuals con flipX). Todo el cuerpo del mismo tono. */
+/* Dibujo de cada parte como SnakeController.GoStraight / UpdateBodyMoveDirect: la serpiente gira como una pieza
+ * rigida. La panza (el lado amarillo) va siempre a la derecha del sentido de la marcha: hacia la derecha, abajo;
+ * hacia arriba, a la derecha; hacia la izquierda queda panza arriba (GoStraight: flipX + flipY, la pieza girada 180
+ * grados) y la cabeza tambien. Las piezas no se deforman: solo giro y espejo. */
+#define right_of right_of_dir
+static int belly_of(int heading, int rev) { return rev ? dir_opposite(right_of(heading)) : right_of(heading); }
+
+/* cabeza y cola: el sprite base va hacia la derecha con la panza abajo */
+static void draw_oriented(int id, float px, float py, float sc, int heading, int belly, uint32_t col)
+{
+    int rot = 0, flip = 0;
+    switch (heading) {
+    case D_RIGHT: flip = belly == D_UP ? FLIP_Y : 0; break;
+    case D_LEFT: flip = belly == D_UP ? FLIP_X | FLIP_Y : FLIP_X; break;   /* panza arriba: girada 180 */
+    case D_UP: rot = 1; flip = belly == D_LEFT ? FLIP_Y : 0; break;
+    default: rot = 1; flip = FLIP_X | (belly == D_LEFT ? FLIP_Y : 0); break;
+    }
+    gfx_sprite(&skin_sheet, skin_id(id), px, py, sc, rot, flip, col);
+}
+
 static void draw_part(int i, const GState *s, float px, float py, uint32_t col, float size)
 {
     int n = s->n;
     float sc = cs * size;
+    int rev = 0;   /* panza a la derecha de la marcha en todas las partes (ver arriba) */
     if (i == 0) {
-        int d = s->dir, fr = head_frame(s);
-        /* derecha tal cual, izquierda en espejo, arriba girada; abajo girada y en espejo (los ojos al mismo lado) */
-        if (d == D_RIGHT) gfx_sprite(&skin_sheet, skin_id(fr), px, py, sc, 0, 0, col);
-        else if (d == D_LEFT) gfx_sprite(&skin_sheet, skin_id(fr), px, py, sc, 0, 1, col);
-        else if (d == D_UP) gfx_sprite(&skin_sheet, skin_id(fr), px, py, sc, 1, 0, col);
-        else gfx_sprite(&skin_sheet, skin_id(fr), px, py, sc, 1, 1, col);
+        draw_oriented(head_frame(s), px, py, sc, s->dir, belly_of(s->dir, rev), col);
         return;
     }
-    int a = dir_between(s->s[i], s->s[i - 1]);                     /* hacia la cabeza */
+    int a = dir_between(s->s[i], s->s[i - 1]);                     /* hacia la cabeza (sentido de la marcha) */
     int b = i + 1 < n ? dir_between(s->s[i], s->s[i + 1]) : -1;   /* hacia la cola */
     if (a < 0 && b >= 0) a = dir_opposite(b);                      /* paso por un portal: se dibuja recto */
     if (a < 0) a = D_RIGHT;
     if (i == n - 1) {
-        /* cola: la base une con la parte de su derecha */
-        if (a == D_RIGHT) gfx_sprite(&skin_sheet, skin_id(SK_T2), px, py, sc, 0, 0, col);
-        else if (a == D_LEFT) gfx_sprite(&skin_sheet, skin_id(SK_T2), px, py, sc, 0, 1, col);
-        else if (a == D_UP) gfx_sprite(&skin_sheet, skin_id(SK_T2), px, py, sc, 1, 0, col);
-        else gfx_sprite(&skin_sheet, skin_id(SK_T2), px, py, sc, 1, 1, col);
+        draw_oriented(SK_T2, px, py, sc, a, belly_of(a, rev), col);
         return;
     }
     if (b < 0) b = dir_opposite(a);
     if (b == dir_opposite(a)) {
-        int horiz = a == D_LEFT || a == D_RIGHT;
-        gfx_sprite(&skin_sheet, skin_id(horiz ? SK_H2 : SK_V2), px, py, sc, 0, 0, col);
+        int belly = belly_of(a, rev);
+        /* girada 180 grados = flipX + flipY, como GoStraight */
+        if (a == D_LEFT || a == D_RIGHT) gfx_sprite(&skin_sheet, skin_id(SK_H2), px, py, sc, 0, belly == D_UP ? FLIP_X | FLIP_Y : 0, col);
+        else gfx_sprite(&skin_sheet, skin_id(SK_V2), px, py, sc, 0, belly == D_LEFT ? FLIP_X | FLIP_Y : 0, col);
         return;
     }
-    int m = (1 << a) | (1 << b);
-    if (m == ((1 << D_RIGHT) | (1 << D_DOWN))) gfx_sprite(&skin_sheet, skin_id(SK_C2), px, py, sc, 0, 0, col);
-    else if (m == ((1 << D_LEFT) | (1 << D_DOWN))) gfx_sprite(&skin_sheet, skin_id(SK_C2), px, py, sc, 0, 1, col);
-    else if (m == ((1 << D_UP) | (1 << D_LEFT))) gfx_sprite(&skin_sheet, skin_id(SK_O2), px, py, sc, 0, 0, col);
-    else gfx_sprite(&skin_sheet, skin_id(SK_O2), px, py, sc, 0, 1, col);
+    /* esquina: la panza va por dentro de la curva (bodyCorner_TopLeft, in_L) o por fuera (TopRight, out_R) */
+    int hin = dir_opposite(b), right_turn = a == right_of(hin);
+    int inner = right_turn ? !rev : rev;
+    int r = (a == D_RIGHT || b == D_RIGHT), d = (a == D_DOWN || b == D_DOWN);
+    if (inner) /* in_L une derecha y abajo */
+        gfx_sprite(&skin_sheet, skin_id(SK_C2), px, py, sc, 0, (r ? 0 : FLIP_X) | (d ? 0 : FLIP_Y), col);
+    else       /* out_R une arriba e izquierda */
+        gfx_sprite(&skin_sheet, skin_id(SK_O2), px, py, sc, 0, (r ? FLIP_X : 0) | (d ? FLIP_Y : 0), col);
 }
 
 static void draw_snake(const GState *from, const GState *to, float t, int pulled)

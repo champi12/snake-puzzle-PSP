@@ -21,6 +21,29 @@ PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 PSP_HEAP_SIZE_KB(-1024);
 
 static volatile int running = 1;
+static char write_dir[192];
+
+/* La carpeta del juego si se puede escribir en ella; si no (PPSSPP abriendo el EBOOT desde otra carpeta la monta
+ * como solo lectura), la del juego en la Memory Stick. Ahi van devlog.txt, crash.txt y save.dat. */
+const char *plat_write_dir(void) { return write_dir; }
+static void pick_write_dir(void)
+{
+    char cwd[160], test[200];
+    if (!getcwd(cwd, sizeof(cwd))) strcpy(cwd, "ms0:/PSP/GAME/SNAKEPZL");
+    snprintf(test, sizeof(test), "%s/.prueba_escritura", cwd);
+    SceUID fd = sceIoOpen(test, PSP_O_WRONLY | PSP_O_CREAT | PSP_O_TRUNC, 0777);
+    if (fd >= 0 && sceIoWrite(fd, "ok", 2) == 2) {
+        sceIoClose(fd);
+        sceIoRemove(test);
+        snprintf(write_dir, sizeof(write_dir), "%s", cwd);
+        return;
+    }
+    if (fd >= 0) sceIoClose(fd);
+    sceIoMkdir("ms0:/PSP", 0777);
+    sceIoMkdir("ms0:/PSP/GAME", 0777);
+    sceIoMkdir("ms0:/PSP/GAME/SNAKEPZL", 0777);
+    strcpy(write_dir, "ms0:/PSP/GAME/SNAKEPZL");
+}
 
 unsigned plat_ms(void) { return sceKernelGetSystemTimeLow() / 1000; }
 unsigned plat_us(void) { return sceKernelGetSystemTimeLow(); }
@@ -70,8 +93,8 @@ static void load_exhandler(void)
     if (!getcwd(dir, sizeof(dir))) strcpy(dir, "ms0:/PSP/GAME/SNAKEPZL");
     char prx[180];
     snprintf(prx, sizeof(prx), "%s/exhandler.prx", dir);
-    snprintf(a.crash_path, sizeof(a.crash_path), "%s/crash.txt", dir);
-    snprintf(a.devlog_path, sizeof(a.devlog_path), "%s/devlog.txt", dir);
+    snprintf(a.crash_path, sizeof(a.crash_path), "%.170s/crash.txt", write_dir);
+    snprintf(a.devlog_path, sizeof(a.devlog_path), "%.170s/devlog.txt", write_dir);
     a.phase_main = &dbg_phase_main;
     a.phase_music = &dbg_phase_music;
     a.phase_mixer = &dbg_phase_mixer;
@@ -165,6 +188,7 @@ int main(int argc, char **argv)
     unsigned int fcr31 = fpu_get_fcr31();
     fpu_no_exceptions();
     mem_init();
+    pick_write_dir();
     SceUID th = sceKernelCreateThread("cb", cb_thread, 0x11, 0xFA0, 0, 0);
     if (th >= 0) sceKernelStartThread(th, 0, 0);
     int clk = scePowerSetClockFrequency(333, 333, 166);
@@ -174,6 +198,7 @@ int main(int argc, char **argv)
 #if DEVLOG
     load_exhandler();
 #endif
+    dlog("Carpeta para escribir (devlog, partida): %s", write_dir);
     dlog("FPU: FCR31 al arrancar 0x%08x (excepciones activadas 0x%02x) -> desactivadas en todos los hilos", fcr31, (fcr31 >> 7) & 31);
     if (clk < 0) dlog("AVISO no se pudo poner la CPU a 333 MHz (0x%08x)", clk);
     unsigned tl = sceKernelGetSystemTimeLow();
