@@ -356,8 +356,10 @@ def object_sprites(G, world):
                 walk(c)
         walk(root)
     ids = {}
-    if want.get('Stone') is None and want.get('stone_list'):
-        want['Stone'] = want['stone_list'][0]
+    # la piedra se ve con una mascara (SpriteMask "Stone") sobre Stone_0/H/V: el sprite "Stone" es la piedra entera
+    st = find_sprites_by_name(G, ['Stone'])
+    if 'Stone' in st:
+        want['Stone'] = st['Stone']
     for key in ('GoalRenderer', 'Stone', 'Spike_1', 'Spike_2', 'SawRenderer', 'Portal_Back', 'Portal_Front', 'Trigger', 'Hole_Back',
                 'Hole_Front', 'Barrier', 'AppleRenderer'):
         if want.get(key) is not None and want[key].type.name == 'Sprite':

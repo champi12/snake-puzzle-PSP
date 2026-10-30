@@ -32,6 +32,8 @@ const char *dbg_state_name(int s) { return s >= 0 && s < GS_COUNT ? state_names[
 
 void set_state(int s)
 {
+    /* las ventanas que salen encima del juego empiezan siempre por su primer boton */
+    if (s != gstate && (s == GS_WIN || s == GS_LOSE || s == GS_PAUSE)) ui_reset_sel();
     gstate = s;
     dbg_game.state = s;
 }

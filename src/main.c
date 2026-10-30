@@ -59,6 +59,7 @@ void fatal_error(const char *msg)
     sceKernelExitGame();
 }
 
+#if DEVLOG
 #include "../exhandler/exhandler.h"
 /* Carga exhandler.prx (modulo de kernel): si la CPU lanza una excepcion, en vez de congelarse la consola se
  * escribe crash.txt con la direccion exacta del fallo. Solo en firmware personalizado; si no se puede, se sigue. */
@@ -67,7 +68,7 @@ static void load_exhandler(void)
     static ExhArgs a;
     char dir[160];
     if (!getcwd(dir, sizeof(dir))) strcpy(dir, "ms0:/PSP/GAME/SNAKEPZL");
-    char prx[200];
+    char prx[180];
     snprintf(prx, sizeof(prx), "%s/exhandler.prx", dir);
     snprintf(a.crash_path, sizeof(a.crash_path), "%s/crash.txt", dir);
     snprintf(a.devlog_path, sizeof(a.devlog_path), "%s/devlog.txt", dir);
@@ -78,6 +79,7 @@ static void load_exhandler(void)
     if (m >= 0) {
         int st = 0;
         int r = sceKernelStartModule(m, sizeof(a), &a, &st, NULL);
+        (void)r;
         dlog("Capturador de excepciones: %s (carga 0x%08x, inicio 0x%08x, estado %d)",
              r >= 0 && st == 0 ? "activo, un cuelgue escribira crash.txt" : "NO activo", m, r, st);
         return;
@@ -98,6 +100,7 @@ static void load_exhandler(void)
          res[0] >= 0 && res[1] >= 0 && res[2] == 0 ? "activo, un cuelgue escribira crash.txt" : "NO activo",
          lm, lr, res[0], res[1], res[2]);
 }
+#endif
 
 /* ---------------------------------------------------------------- medidor de rendimiento (SELECT) */
 static uint32_t ok_col(float frac) { return frac < 0.75f ? RGBA(120, 255, 120, 255) : frac < 0.9f ? RGBA(255, 230, 80, 255) : RGBA(255, 90, 90, 255); }
@@ -172,6 +175,8 @@ int main(int argc, char **argv)
     dlog("FPU: FCR31 al arrancar 0x%08x (excepciones activadas 0x%02x) -> desactivadas en todos los hilos", fcr31, (fcr31 >> 7) & 31);
     if (clk < 0) dlog("AVISO no se pudo poner la CPU a 333 MHz (0x%08x)", clk);
     unsigned tl = sceKernelGetSystemTimeLow();
+    (void)tl;
+    (void)fcr31;
     gfx_init();
     dlog("GE iniciado: VRAM pantallas %u KB (16 bits, doble buffer, sin Z), %u KB libres para texturas",
          (unsigned)gstat.vram_fb / 1024, (unsigned)(2048 - gstat.vram_fb / 1024));

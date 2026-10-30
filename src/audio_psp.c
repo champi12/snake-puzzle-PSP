@@ -196,6 +196,8 @@ int audio_init(const char *dir)
     snprintf(music_path[1], sizeof(music_path[1]), "%s/%s/music_lunar.mp3", base, dir);
     int r1 = sceUtilityLoadModule(PSP_MODULE_AV_AVCODEC), r2 = sceUtilityLoadModule(PSP_MODULE_AV_MP3);
     int r3 = sceMp3InitResource();
+    (void)r1;
+    (void)r2;
     mp3_ok = r3 >= 0;
     dlog("AUDIO modulos: avcodec 0x%08x mp3 0x%08x | sceMp3InitResource 0x%08x", r1, r2, r3);
     if (!mp3_ok) dlog_error("No se pudo iniciar el decodificador MP3: no habra musica");

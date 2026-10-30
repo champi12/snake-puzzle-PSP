@@ -204,7 +204,7 @@ void classic_end_draw(void)
 {
     gfx_fill(0, 0, SCR_W, SCR_H, RGBA(0, 0, 0, 140));
     draw_panel(90, 10, 300, 250);
-    text_draw(SCR_W / 2, 18, FONT_L, rank_pos == 0 ? "NUEVO PRIMER PUESTO!" : "RANKING", WHITE, 1);
+    text_draw(SCR_W / 2, 18, FONT_L, rank_pos == 0 ? "NUEVO PRIMER PUESTO!" : "RANKING", RGBA(105, 58, 28, 255), 1);
     char b[64];
     int row = 0;
     for (int i = 0; i <= 10 && row < 11; i++) {
@@ -216,12 +216,12 @@ void classic_end_draw(void)
         snprintf(b, sizeof(b), "%2d. %-10s %4d", i + 1, nm, sc);
         float y = 46 + row * 17;
         if (is_me) gfx_fill(110, y - 1, 260, 17, RGBA(250, 200, 40, 120));
-        text_draw(130, y, FONT_S, b, WHITE, 0);
+        text_draw(130, y, FONT_S, b, RGBA(105, 58, 28, 255), 0);
         row++;
     }
     if (rank_reward) {
         snprintf(b, sizeof(b), "Premio: +%d pista%s", rank_reward, rank_reward > 1 ? "s" : "");
-        text_draw(SCR_W / 2, 238, FONT_M, b, RGBA(255, 240, 150, 255), 1);
+        text_draw(SCR_W / 2, 238, FONT_M, b, RGBA(200, 90, 30, 255), 1);
     }
     text_draw(SCR_W / 2, SCR_H - 16, FONT_S, BTN_X " Otra vez   " BTN_O " Inicio", WHITE, 1);
 }

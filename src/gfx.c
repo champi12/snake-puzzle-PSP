@@ -168,6 +168,15 @@ void gfx_sprite_rect(const Sheet *s, int id, float x, float y, float w, float h,
     be_quad(v, color);
 }
 
+void gfx_sprite_fit(const Sheet *s, int id, float x, float y, float w, float h, uint32_t color)
+{
+    if (!s || id < 0 || id >= s->nspr) return;
+    const Spr *r = &s->spr[id];
+    float sw = r->w ? r->w : 1, sh = r->h ? r->h : 1;
+    float k = w / sw < h / sh ? w / sw : h / sh;
+    gfx_sprite_rect(s, id, x - sw * k / 2, y - sh * k / 2, sw * k, sh * k, color);
+}
+
 float spr_w(const Sheet *s, int id) { return (s && id >= 0 && id < s->nspr) ? s->spr[id].uw / 256.0f : 0; }
 float spr_h(const Sheet *s, int id) { return (s && id >= 0 && id < s->nspr) ? s->spr[id].uh / 256.0f : 0; }
 

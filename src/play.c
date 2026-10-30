@@ -28,7 +28,7 @@ static GState undo_buf[UNDO_MAX];
 static int undo_n;
 static int moves;
 static float cs, ox, oy;       /* tamano de casilla y origen en pantalla */
-static float head_anim_t, blink_t, stuck_t, eat_t, end_t;
+static float blink_t, stuck_t, eat_t, end_t;
 static int queued_dir = -1;
 static float repeat_t;
 static int held_dir = -1;
@@ -448,8 +448,8 @@ void play_draw(void)
         int d = cur_level.hint[hint_pos] - '0';
         float bounce = 0.55f + 0.12f * sinf(gtime * 8);
         float x = sx(S.s[0].x + DIR_DX[d] * bounce), y = sy(S.s[0].y + DIR_DY[d] * bounce);
-        /* HintArrow apunta hacia arriba */
-        gfx_sprite(&world, WSPR(UI_HINTARROW), x, y, cs * 0.8f, (rot_of(d) + 3) & 3, 0, WHITE);
+        /* HintArrow apunta a la derecha */
+        gfx_sprite(&world, WSPR(UI_HINTARROW), x, y, cs * 1.6f, rot_of(d), 0, WHITE);
     }
     dbg_sect_ms[3] = (plat_us() - t3) / 1000.0f;
     /* barra de arriba: nivel, pistas, saltos */
@@ -458,10 +458,10 @@ void play_draw(void)
     char b[64];
     snprintf(b, sizeof(b), "NIVEL %d", play_idx + 1);
     text_draw(SCR_W / 2, 2, FONT_M, b, WHITE, 1);
-    gfx_sprite(&world, WSPR(UI_ICON_HINT), 14, 11, 14, 0, 0, WHITE);
+    gfx_sprite_fit(&world, WSPR(UI_ICON_HINT), 12, 11, 18, 18, WHITE);
     snprintf(b, sizeof(b), "%d", sv.hints);
     text_draw(24, 3, FONT_S, b, WHITE, 0);
-    gfx_sprite(&world, WSPR(UI_ICON_SKIPLEVEL), 54, 11, 14, 0, 0, WHITE);
+    gfx_sprite_fit(&world, WSPR(UI_ICON_SKIPLEVEL), 52, 11, 18, 18, WHITE);
     snprintf(b, sizeof(b), "%d", sv.skips);
     text_draw(64, 3, FONT_S, b, WHITE, 0);
     snprintf(b, sizeof(b), "Movs. %d", moves);

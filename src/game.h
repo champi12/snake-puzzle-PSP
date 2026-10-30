@@ -117,6 +117,7 @@ void ui_input(unsigned in);
 void ui_update(float dt);
 void ui_draw(void);
 void ui_message(const char *text, float secs);
+void ui_reset_sel(void);
 void draw_button(float x, float y, float w, float h, const char *label, int selected, int enabled);
 void draw_panel(float x, float y, float w, float h);
 void reward_popup(int type, int id);   /* GS_REWARD: aspecto o fondo nuevo */

@@ -1,5 +1,6 @@
 # datos generados a partir del APK (no se distribuyen)
 data/
+data
 *.apk
 *.xapk
 *.rar
