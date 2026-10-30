@@ -763,10 +763,27 @@ def export_shop(G, out):
     blob += struct.pack('<H', len(top)) + b''.join(struct.pack('<H', int(round(t * 100))) for t in top)
     blob += struct.pack('<64h', *((skin_icon + bg_icon)[:64]))
     blob += struct.pack('<22h', *prog[:22])
+    # paquetes de la tienda de pago (BasePackageItem: 0 sin anuncios, 1 pistas, 2 saltos, 3 aspecto, 4 fondo) y el
+    # premio por "ver un anuncio" (BaseAdsPackageItem); en la PSP se pagan con fichas
+    packs = {}
+    for fname in G.files:
+        for ob in G.files[fname].objects.values():
+            if ob.type.name != 'MonoBehaviour':
+                continue
+            sc = G.script_of(ob)
+            if not sc or sc[2] != 'BasePackageItem':
+                continue
+            cl, d = G.mono(ob)
+            if d and d.get('packageId') is not None:
+                packs.setdefault(d['packageId'], [(r['type'], r['quantity']) for r in d.get('rewards', [])])
+    blob += struct.pack('<H', len(packs))
+    for pid in sorted(packs):
+        rw = [r for r in packs[pid] if r[0] in (1, 2, 3, 4)][:8]
+        blob += struct.pack('<BB', pid, len(rw)) + b''.join(struct.pack('<BB', t, min(q, 255)) for t, q in rw)
     with open(os.path.join(out, 'meta.bin'), 'wb') as fo:
         fo.write(blob)
-    print('  tienda: %d articulos, %d tramos de progreso, %d dias de recompensa, ranking de %d' %
-          (len(items), len(sp), len(daily), len(names)))
+    print('  tienda: %d articulos, %d paquetes, %d tramos de progreso, %d dias de recompensa, ranking de %d' %
+          (len(items), len(packs), len(sp), len(daily), len(names)))
 
 
 def main():

@@ -119,5 +119,24 @@ int meta_load(const char *path)
     for (int i = 0; i < 32; i++) meta.bg_icon[i] = (int16_t)rd16(p + 64 + i * 2);
     p += 128;
     for (int i = 0; i < 22; i++) meta.prog_icon[i] = (int16_t)rd16(p + i * 2);
+    p += 44;
+    if (p + 2 <= b + n) {
+        meta.npack = rd16(p);
+        p += 2;
+        for (int i = 0; i < meta.npack && p + 2 <= b + n; i++) {
+            int id = p[0], k = p[1];
+            p += 2;
+            if (i < 16) {
+                meta.pack[i].id = id;
+                meta.pack[i].n = k > 8 ? 8 : k;
+                for (int j = 0; j < k && j < 8; j++) {
+                    meta.pack[i].type[j] = p[j * 2];
+                    meta.pack[i].qty[j] = p[j * 2 + 1];
+                }
+            }
+            p += k * 2;
+        }
+        if (meta.npack > 16) meta.npack = 16;
+    }
     return 0;
 }

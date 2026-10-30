@@ -168,6 +168,12 @@ int main(int argc, char **argv)
     set_state(GS_SHOP);
     frames(2, IN_R);
     shot("tienda_fondos");
+    frames(2, IN_R);
+    shot("tienda_packs");
+    frames(2, IN_DOWN);
+    frames(2, IN_CROSS);
+    frames(2, 0);
+    shot("tienda_pack_comprado");
     set_state(GS_DAILY);
     frames(2, 0);
     shot("diario");

@@ -16,7 +16,7 @@
 int ui_return_state = GS_HOME;
 static int sel;                    /* opcion elegida en la pantalla actual */
 static int page;
-static int shop_tab;               /* 0 aspectos, 1 fondos */
+static int shop_tab;               /* 0 aspectos, 1 fondos, 2 packs (la tienda de pago del original, con fichas) */
 static char msg[128];
 static float msg_t;
 static int reward_q[8][2], reward_n;
@@ -355,6 +355,108 @@ static int item_need(int type, int id, const char **why)
     return d->need ? d->need : 1;
 }
 
+/* ---- packs (ShopIAPController / SpecialBundle / HalloweenBundle / NoAdsBundle): en la PSP se pagan con fichas ---- */
+static int pack_list[16], pack_count;
+
+static int pack_valid(int k)
+{
+    int useful = 0;
+    for (int j = 0; j < meta.pack[k].n; j++) {
+        int t = meta.pack[k].type[j], q = meta.pack[k].qty[j];
+        if (t == RW_HINT || t == RW_SKIP) useful = 1;
+        if (t == RW_SKIN && q < nskins) useful = 1;
+        if (t == RW_BG && q < nbgs) useful = 1;
+    }
+    if (meta.pack[k].id == 11 && event_now() != 1) return 0;   /* HalloweenBundle: solo en su evento */
+    return useful;
+}
+
+static void pack_build(void)
+{
+    pack_count = 0;
+    for (int k = 0; k < meta.npack; k++)
+        if (pack_valid(k)) pack_list[pack_count++] = k;
+}
+
+/* precio en fichas: 1 por pista o salto (el original da 1 pista por anuncio visto) y 5 por aspecto o fondo, con
+ * descuento en los paquetes grandes como en la tienda original */
+static int pack_price(int k)
+{
+    int c = 0;
+    for (int j = 0; j < meta.pack[k].n; j++) {
+        int t = meta.pack[k].type[j], q = meta.pack[k].qty[j];
+        if (t == RW_HINT || t == RW_SKIP) c += q;
+        else if (t == RW_SKIN || t == RW_BG) c += 5;
+    }
+    if (c >= 10) c = c * 3 / 4;
+    return c < 1 ? 1 : c;
+}
+
+static void pack_text(int k, char *b, int n)
+{
+    b[0] = 0;
+    for (int j = 0; j < meta.pack[k].n; j++) {
+        int t = meta.pack[k].type[j], q = meta.pack[k].qty[j];
+        char p[32] = "";
+        if (t == RW_HINT) snprintf(p, sizeof(p), "%d pistas", q);
+        else if (t == RW_SKIP) snprintf(p, sizeof(p), "%d saltos", q);
+        else if (t == RW_SKIN && q < nskins) snprintf(p, sizeof(p), "aspecto");
+        else if (t == RW_BG && q < nbgs) snprintf(p, sizeof(p), "fondo");
+        if (!p[0]) continue;
+        if (b[0]) strncat(b, " + ", n - strlen(b) - 1);
+        strncat(b, p, n - strlen(b) - 1);
+    }
+}
+
+static void packs_draw(void)
+{
+    pack_build();
+    if (sel >= pack_count) sel = pack_count ? pack_count - 1 : 0;
+    for (int r = 0; r < pack_count && r < 8; r++) {
+        int k = pack_list[r];
+        float y = 40 + r * 25;
+        gfx_fill(20, y, 440, 23, r == sel ? RGBA(250, 200, 40, 200) : RGBA(0, 0, 0, 110));
+        char b[96];
+        pack_text(k, b, sizeof(b));
+        int icon = WSPR(UI_ICON_HINT);
+        for (int j = 0; j < meta.pack[k].n; j++)
+            if (meta.pack[k].type[j] == RW_SKIN && meta.pack[k].qty[j] < nskins) icon = -2 - meta.pack[k].qty[j];
+        if (icon >= 0) gfx_sprite_fit(&world, icon, 36, y + 11, 20, 20, WHITE);
+        else gfx_sprite_fit(&shop_sheet, meta.skin_icon[(-2 - icon) & 31], 36, y + 11, 22, 22, WHITE);
+        text_draw(54, y + 3, FONT_M, b, WHITE, 0);
+        snprintf(b, sizeof(b), "%d fichas", pack_price(k));
+        text_draw(450, y + 3, FONT_M, b, sv.tokens >= pack_price(k) ? RGBA(150, 255, 150, 255) : RGBA(255, 150, 150, 255), 2);
+    }
+    if (!pack_count) text_draw(SCR_W / 2, 120, FONT_M, "No hay paquetes", WHITE, 1);
+}
+
+static void packs_buy(void)
+{
+    pack_build();
+    if (sel >= pack_count) return;
+    int k = pack_list[sel], price = pack_price(k);
+    if (sv.tokens < price) {
+        play_sfx(SFX_STOP);
+        ui_message("Faltan fichas: ganas 1 por cada nivel nuevo superado", 2.5f);
+        return;
+    }
+    sv.tokens -= price;
+    for (int j = 0; j < meta.pack[k].n; j++) {
+        int t = meta.pack[k].type[j], q = meta.pack[k].qty[j];
+        if (t == RW_HINT) sv.hints += q;
+        else if (t == RW_SKIP) sv.skips += q;
+        else if (t == RW_SKIN && q < nskins && !skin_available(q)) { sv.skins_owned |= 1u << q; reward_popup(0, q); }
+        else if (t == RW_BG && q < nbgs && !bg_available(q)) { sv.bgs_owned |= 1u << q; reward_popup(1, q); }
+    }
+    play_sfx(SFX_REWARD);
+    char b[96], m[120];
+    pack_text(k, b, sizeof(b));
+    snprintf(m, sizeof(m), "Comprado: %s", b);
+    ui_message(m, 2.0f);
+    dlog("TIENDA paquete %d por %d fichas", meta.pack[k].id, price);
+    game_save();
+}
+
 static void shop_draw(void)
 {
     if (shop_tab) {
@@ -369,8 +471,15 @@ static void shop_draw(void)
     if (sel >= shop_count) sel = shop_count - 1;
     if (sel < 0) sel = 0;
     text_draw(120, 4, FONT_L, "TIENDA", WHITE, 1);
-    draw_button(250, 4, 100, 26, "ASPECTOS", shop_tab == 0, 1);
-    draw_button(358, 4, 100, 26, "FONDOS", shop_tab == 1, 1);
+    draw_button(196, 4, 90, 26, "ASPECTOS", shop_tab == 0, 1);
+    draw_button(290, 4, 90, 26, "FONDOS", shop_tab == 1, 1);
+    draw_button(384, 4, 90, 26, "PACKS", shop_tab == 2, 1);
+    if (shop_tab == 2) {
+        packs_draw();
+        counters(SCR_H - 40);
+        help(BTN_X " Comprar con fichas   " BTN_O " Volver   L/R Pestana");
+        return;
+    }
     /* vista previa */
     draw_panel(8, 40, 200, 196);
     int id = shop_list[sel];
@@ -405,13 +514,23 @@ static void shop_draw(void)
         if ((shop_tab ? sv.bg : sv.skin) == i) gfx_sprite_fit(&world, WSPR(UI_ICON_TICK), x + 14, y + 14, 18, 18, WHITE);
     }
     counters(SCR_H - 40);
-    help(BTN_X " Elegir/pagar   " BTN_O " Volver   L/R Aspectos/Fondos");
+    help(BTN_X " Elegir/pagar   " BTN_O " Volver   L/R Pestana");
 }
 
 static void shop_input(unsigned in)
 {
     shop_build();
-    if (in & (IN_L | IN_R)) { shop_tab ^= 1; sel = 0; shop_build(); }
+    if (in & IN_L) { shop_tab = (shop_tab + 2) % 3; sel = 0; }
+    if (in & IN_R) { shop_tab = (shop_tab + 1) % 3; sel = 0; }
+    if (shop_tab == 2) {
+        pack_build();
+        if (in & IN_UP && sel > 0) sel--;
+        if (in & IN_DOWN && sel + 1 < pack_count) sel++;
+        if (in & IN_CIRCLE) { play_sfx(SFX_CLICK); sel = H_SHOP; set_state(GS_HOME); return; }
+        if (in & IN_CROSS) packs_buy();
+        return;
+    }
+    shop_build();
     if (in & IN_LEFT && sel > 0) sel--;
     if (in & IN_RIGHT && sel + 1 < shop_count) sel++;
     if (in & IN_UP && sel >= 5) sel -= 5;

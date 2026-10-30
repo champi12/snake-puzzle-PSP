@@ -66,7 +66,10 @@ typedef struct {
     int ntop;
     uint16_t top[400];             /* % de jugadores superados por nivel (x100) */
     int16_t skin_icon[32], bg_icon[32], prog_icon[22];
+    int npack;                     /* paquetes de la tienda de pago (BasePackageItem), aqui con fichas */
+    struct { uint8_t id, n; uint8_t type[8], qty[8]; } pack[16];
 } Meta;
+enum { RW_NOADS = 0, RW_HINT, RW_SKIP, RW_SKIN, RW_BG };
 extern Meta meta;
 
 /* recursos cargados */
