@@ -39,6 +39,7 @@ void audio_shutdown(void) {}
 void audio_play(int id, float vol) { (void)id; (void)vol; }
 void audio_music(int w) { (void)w; }
 void audio_set_enabled(int a, int b) { (void)a; (void)b; }
+const char *audio_status(void) { return "Audio: PC"; }
 
 extern void host_shot(const char *path);
 static int shot_n;
@@ -87,7 +88,14 @@ int main(int argc, char **argv)
     play_start(0, 0);
     frames(40, 0);
     shot("nivel1");
-    play_solution(0, -1);
+    play_solution(0, cur_level.nhint - 1);
+    {
+        int d = cur_level.hint[cur_level.nhint - 1] - '0';
+        frames(10, d == D_UP ? IN_UP : d == D_DOWN ? IN_DOWN : d == D_LEFT ? IN_LEFT : IN_RIGHT);
+    }
+    shot("portal_entrando");
+    frames(7, 0);
+    shot("portal_entrando2");
     frames(120, 0);
     shot("nivel1_superado");
     frames(2, IN_CROSS);
@@ -97,12 +105,17 @@ int main(int argc, char **argv)
     for (int i = 0; i < levels.count; i++) {
         Level L;
         level_get(&levels, i, &L);
-        if (L.num == 30 || L.num == 26 || L.num == 211 || L.num == 241 || L.num == 151) {
+        if (L.num == 30 || L.num == 26 || L.num == 211 || L.num == 241 || L.num == 151 || L.num == 3 || L.num == 1) {
             play_start(i, 0);
             frames(40, 0);
             char b[32];
             snprintf(b, sizeof(b), "nivel%d", L.num);
             shot(b);
+            if (L.num == 3) {   /* comer y girar: esquinas y cola en todas las direcciones */
+                play_solution(i, 6);
+                frames(30, 0);
+                shot("nivel3_esquinas");
+            }
             if (L.num == 211) {
                 play_solution(i, 3);
                 frames(5, 0);

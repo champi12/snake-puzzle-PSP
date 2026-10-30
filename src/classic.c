@@ -14,6 +14,7 @@
 #include "audio.h"
 #include "devlog.h"
 #include "ui_ids.h"
+#include "skin.h"
 
 #define CW 13
 #define CH 12
@@ -164,11 +165,16 @@ void classic_draw(void)
             gfx_fill(ox + x * cs, oy + y * cs, cs, cs, (x + y) & 1 ? RGBA(120, 190, 90, 210) : RGBA(140, 205, 105, 210));
     /* serpiente: se reutiliza el dibujo de la tienda pieza a pieza con la interpolacion del paso */
     float t = started && alive ? step_t / step_len : 1;
-    int sk_apple = 36 < skin_sheet.nspr ? 36 : -1;
+    int sk_apple = SK_APPLE < skin_sheet.nspr ? SK_APPLE : -1;
     float ax = ox + (apple_x + 0.5f) * cs, ay = oy + (CH - 1 - apple_y + 0.5f) * cs;
     if (sk_apple >= 0) gfx_sprite(&skin_sheet, sk_apple, ax, ay, cs, 0, 0, WHITE);
     else gfx_sprite(&world, WSPR(W_APPLE), ax, ay, cs, 0, 0, WHITE);
-    for (int i = n - 1; i >= 0; i--) {
+    static GState st;
+    static float xs[CMAX], ys[CMAX];
+    st.n = n;
+    st.dir = dir;
+    st.dead = !alive;
+    for (int i = 0; i < n; i++) {
         float fx = body[i].x, fy = body[i].y;
         if (i < prev_n) {
             float dx = body[i].x - prev_body[i].x, dy = body[i].y - prev_body[i].y;
@@ -177,16 +183,11 @@ void classic_draw(void)
                 fy = prev_body[i].y + dy * t;
             }
         }
-        float px = ox + (fx + 0.5f) * cs, py = oy + (CH - 1 - fy + 0.5f) * cs;
-        int id;
-        if (i == 0) id = alive ? 8 : 35;
-        else id = (i & 1) ? (body[i].y == body[i - 1].y ? 0 : 1) : (body[i].y == body[i - 1].y ? 4 : 5);
-        if (i == 0) {
-            if (dir == D_LEFT) gfx_sprite(&skin_sheet, id, px, py, cs, 0, 1, WHITE);
-            else gfx_sprite(&skin_sheet, id, px, py, cs, dir == D_RIGHT ? 0 : dir == D_UP ? 1 : 3, 0, WHITE);
-        } else
-            gfx_sprite(&skin_sheet, id, px, py, cs, 0, 0, WHITE);
+        st.s[i] = body[i];
+        xs[i] = ox + (fx + 0.5f) * cs;
+        ys[i] = oy + (CH - 1 - fy + 0.5f) * cs;
     }
+    draw_snake_screen(&st, xs, ys, cs);
     char b[64];
     gfx_fill(0, 0, SCR_W, 24, RGBA(0, 0, 0, 110));
     snprintf(b, sizeof(b), "PUNTOS %d", score);

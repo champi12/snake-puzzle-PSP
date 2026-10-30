@@ -212,7 +212,12 @@ def decode_hint(s):
     return ''.join(ch for ch in str(v) if ch in '0123')
 
 
+WORLD = None
+
+
 def export_levels(G, out, world):
+    global WORLD
+    WORLD = world
     sprites = Sprites()
     levels = []
     for path in G.container:
@@ -251,6 +256,12 @@ GATE_ROT = {0: 3, 90: 0, 180: 2, 270: 1}     # giro del portal -> direccion de e
 def level_blob(L, spr_map):
     cells = [(c[0], c[1]) for ly in L['layers'] for c in ly['cells']] + [L['goal'], L['snake']['cell']]
     cells += [o['cell'] for o in L['objs'] if 'cell' in o]
+    for o in L['objs']:
+        if o['t'] == O_TUT and WORLD is not None:
+            # la imagen del tutorial (Tut_01: la cruceta para moverse) tiene que caber en pantalla con el nivel
+            im, ox, oy, uw, uh = WORLD.items[spr_map[o['spr']]]
+            x, y = o['pos']
+            cells += [(int(math.floor(x + ox)), int(math.floor(y - oy - uh))), (int(math.floor(x + ox + uw)), int(math.floor(y - oy)))]
     x0 = min(c[0] for c in cells) - 1
     y0 = min(c[1] for c in cells) - 1
     x1 = max(c[0] for c in cells) + 1
@@ -437,7 +448,10 @@ def export_backgrounds(G, out):
 # ---------------------------------------------------------------- aspectos de la serpiente
 SKIN_PARTS = ['body/light/body_1_horizontal', 'body/light/body_1_verticle', 'body/light/body_1_horizontal_in_l_1',
               'body/light/tail_1_horizontal', 'body/dark/body_2_horizontal', 'body/dark/body_2_verticle',
-              'body/dark/body_2_horizontal_in_l_1', 'body/dark/tail_2_horizontal']
+              'body/dark/body_2_horizontal_in_l_1', 'body/dark/tail_2_horizontal',
+              'body/light/body_1_verticle_out_r_1', 'body/dark/body_2_verticle_out_r_1']
+# Orden fijo (src/skin.h). Las piezas tienen la sombra amarilla siempre abajo y a la derecha: no se giran, se usan
+# las dos esquinas del original (in_L une derecha y abajo, out_R une arriba e izquierda) y sus espejos.
 HEAD_FRAMES = (['head/idle/head_idle_%d' % i for i in (1, 2, 3)] + ['head/blink/head_blink_%d' % i for i in range(1, 6)] +
                ['head/eat/head_eat_%d' % i for i in range(1, 11)] +
                ['head/idle_to_eat/head_idle_to_eat_%d' % i for i in range(1, 6)] +

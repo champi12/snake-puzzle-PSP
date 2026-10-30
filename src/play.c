@@ -10,6 +10,7 @@
 #include "audio.h"
 #include "devlog.h"
 #include "ui_ids.h"
+#include "skin.h"
 
 #define MOVE_T 0.10f
 #define FALL_T 0.08f
@@ -32,8 +33,8 @@ static float blink_t, stuck_t, eat_t, end_t;
 static int queued_dir = -1;
 static float repeat_t;
 static int held_dir = -1;
-static float win_t;
-static int win_pulled;         /* partes ya metidas en el portal */
+static float win_t;            /* entrada en el portal (StartAutoMove) */
+#define ENTER_T 0.075f         /* segundos por casilla al entrar */
 static float goal_ang, saw_ang;
 
 static int animating(void) { return step_i < steps.n; }
@@ -75,7 +76,6 @@ void play_start(int idx, int hint_mode)
     play_hint = hint_mode;
     hint_pos = 0;
     win_t = 0;
-    win_pulled = 0;
     end_t = 0;
     layout();
     dbg_game.level = cur_level.num;
@@ -217,8 +217,7 @@ void play_update(float dt)
         if (S.win) {
             /* StartAutoMove: la serpiente entra entera en el portal y LevelComplete */
             win_t += dt;
-            if (win_t > 0.06f * (win_pulled + 1) && win_pulled < S.n) win_pulled++;
-            if (win_pulled >= S.n && win_t > 0.06f * S.n + 0.3f) on_win();
+            if (win_t > ENTER_T * (S.n + 1) + 0.35f) on_win();
             return;
         }
         if (S.dead) {
@@ -246,18 +245,6 @@ void play_update(float dt)
 
 /* ---------------------------------------------------------------- dibujo */
 static int skin_id(int k) { return k < skin_sheet.nspr ? k : -1; }
-#define SK_H1 0
-#define SK_V1 1
-#define SK_C1 2
-#define SK_T1 3
-#define SK_H2 4
-#define SK_IDLE 8
-#define SK_BLINK 11
-#define SK_EAT 16
-#define SK_ITE 26
-#define SK_ITS 31
-#define SK_DIE 35
-#define SK_APPLE 36
 
 static int dir_between(Cell a, Cell b)
 {
@@ -300,40 +287,44 @@ static int head_frame(const GState *s)
     return SK_IDLE;
 }
 
+/* Todas las piezas tienen la sombra amarilla abajo y a la derecha, asi que no se giran: se usan las dos esquinas del
+ * original y sus espejos (como hace SnakeController.UpdateVisuals con flipX). Todo el cuerpo del mismo tono. */
 static void draw_part(int i, const GState *s, float px, float py, uint32_t col, float size)
 {
     int n = s->n;
     float sc = cs * size;
     if (i == 0) {
         int d = s->dir, fr = head_frame(s);
-        if (d == D_LEFT) gfx_sprite(&skin_sheet, skin_id(fr), px, py, sc, 0, 1, col);
-        else gfx_sprite(&skin_sheet, skin_id(fr), px, py, sc, rot_of(d), 0, col);
+        /* derecha tal cual, izquierda en espejo, arriba girada; abajo girada y en espejo (los ojos al mismo lado) */
+        if (d == D_RIGHT) gfx_sprite(&skin_sheet, skin_id(fr), px, py, sc, 0, 0, col);
+        else if (d == D_LEFT) gfx_sprite(&skin_sheet, skin_id(fr), px, py, sc, 0, 1, col);
+        else if (d == D_UP) gfx_sprite(&skin_sheet, skin_id(fr), px, py, sc, 1, 0, col);
+        else gfx_sprite(&skin_sheet, skin_id(fr), px, py, sc, 1, 1, col);
         return;
     }
-    int dark = !(i & 1);
-    int base = dark ? SK_H2 : SK_H1;
     int a = dir_between(s->s[i], s->s[i - 1]);                     /* hacia la cabeza */
     int b = i + 1 < n ? dir_between(s->s[i], s->s[i + 1]) : -1;   /* hacia la cola */
     if (a < 0 && b >= 0) a = dir_opposite(b);                      /* paso por un portal: se dibuja recto */
     if (a < 0) a = D_RIGHT;
-    if (i == n - 1) {   /* cola: el sprite base apunta a la derecha (une con la parte de su derecha) */
-        gfx_sprite(&skin_sheet, skin_id(base + 3), px, py, sc, rot_of(a), 0, col);
+    if (i == n - 1) {
+        /* cola: la base une con la parte de su derecha */
+        if (a == D_RIGHT) gfx_sprite(&skin_sheet, skin_id(SK_T2), px, py, sc, 0, 0, col);
+        else if (a == D_LEFT) gfx_sprite(&skin_sheet, skin_id(SK_T2), px, py, sc, 0, 1, col);
+        else if (a == D_UP) gfx_sprite(&skin_sheet, skin_id(SK_T2), px, py, sc, 1, 0, col);
+        else gfx_sprite(&skin_sheet, skin_id(SK_T2), px, py, sc, 1, 1, col);
         return;
     }
     if (b < 0) b = dir_opposite(a);
     if (b == dir_opposite(a)) {
         int horiz = a == D_LEFT || a == D_RIGHT;
-        gfx_sprite(&skin_sheet, skin_id(base + (horiz ? 0 : 1)), px, py, sc, 0, 0, col);
+        gfx_sprite(&skin_sheet, skin_id(horiz ? SK_H2 : SK_V2), px, py, sc, 0, 0, col);
         return;
     }
-    /* esquina: el sprite base (bodyCorner_TopLeft) une derecha y abajo */
-    int r;
     int m = (1 << a) | (1 << b);
-    if (m == ((1 << D_RIGHT) | (1 << D_DOWN))) r = 0;
-    else if (m == ((1 << D_UP) | (1 << D_RIGHT))) r = 1;
-    else if (m == ((1 << D_LEFT) | (1 << D_UP))) r = 2;
-    else r = 3;
-    gfx_sprite(&skin_sheet, skin_id(base + 2), px, py, sc, r, 0, col);
+    if (m == ((1 << D_RIGHT) | (1 << D_DOWN))) gfx_sprite(&skin_sheet, skin_id(SK_C2), px, py, sc, 0, 0, col);
+    else if (m == ((1 << D_LEFT) | (1 << D_DOWN))) gfx_sprite(&skin_sheet, skin_id(SK_C2), px, py, sc, 0, 1, col);
+    else if (m == ((1 << D_UP) | (1 << D_LEFT))) gfx_sprite(&skin_sheet, skin_id(SK_O2), px, py, sc, 0, 0, col);
+    else gfx_sprite(&skin_sheet, skin_id(SK_O2), px, py, sc, 0, 1, col);
 }
 
 static void draw_snake(const GState *from, const GState *to, float t, int pulled)
@@ -351,6 +342,35 @@ static void draw_snake(const GState *from, const GState *to, float t, int pulled
         uint32_t col = WHITE;
         if (pulled && i >= to->n - pulled) continue;   /* ya dentro del portal */
         draw_part(i, to, sx(fx), sy(fy), col, size);
+    }
+}
+
+/* StartAutoMove: la serpiente sigue su propio camino hacia el portal; la cabeza entra la primera y cada parte se
+ * encoge al llegar al centro (en el original la tapa una SpriteMask) */
+static void draw_snake_enter(const GState *s, float u)
+{
+    static GState tmp;
+    int n = s->n;
+    tmp = *s;
+    for (int j = 0; j < n; j++) {
+        int k = (int)floorf(j - u);
+        tmp.s[j] = s->s[k < 0 ? 0 : k];
+    }
+    for (int i = n - 1; i >= 0; i--) {
+        float k = i - u, size = 1;
+        float x, y;
+        if (k <= -1) continue;                     /* ya dentro */
+        if (k < 0) {
+            size = 1 + k;
+            x = s->s[0].x;
+            y = s->s[0].y;
+        } else {
+            int f = (int)floorf(k), g = f + 1 < n ? f + 1 : f;
+            float fr = k - f;
+            x = s->s[f].x + (s->s[g].x - s->s[f].x) * fr;
+            y = s->s[f].y + (s->s[g].y - s->s[f].y) * fr;
+        }
+        draw_part(i, &tmp, sx(x), sy(y), WHITE, size);
     }
 }
 
@@ -399,6 +419,7 @@ static void draw_objects(const GState *s, const GState *from, float t)
     }
     /* manzanas (ChangeAppleSkin: la del aspecto elegido) */
     int apple = SK_APPLE < skin_sheet.nspr ? SK_APPLE : -1;
+    (void)skin_id;
     for (int a = 0; a < G.napple; a++) {
         if (!s->apple_alive[a]) continue;
         float bob = sinf(gtime * 3 + a) * cs * 0.03f;
@@ -439,7 +460,13 @@ void play_draw(void)
     float t = animating() ? step_t : 1;
     draw_objects(to, &shown_from, t);
     unsigned t3 = plat_us();
-    draw_snake(&shown_from, to, t, S.win && !animating() ? win_pulled : 0);
+    if (S.win && !animating()) {
+        draw_snake_enter(&S, win_t / ENTER_T);
+        /* el portal por encima mientras traga la serpiente, girando mas deprisa */
+        float grow = 1.0f + 0.25f * sinf(win_t * 6.0f < 3.14159f ? win_t * 6.0f : 3.14159f);
+        gfx_sprite_angle(&world, WSPR(W_GOAL), sx(G.gx), sy(G.gy), cs * grow, goal_ang + win_t * win_t * 6, WHITE);
+    } else
+        draw_snake(&shown_from, to, t, 0);
     /* portales: parte de delante (tapa la serpiente al entrar) */
     for (int g = 0; g < G.ngate; g++)
         gfx_sprite(&world, WSPR(W_PORTAL_FRONT), sx(G.gate[g].x), sy(G.gate[g].y), cs, rot_of(G.gate_dir[g]), 0, WHITE);
@@ -472,6 +499,15 @@ void play_draw(void)
                             : BTN_SQ " Pista   " BTN_TRI " Reiniciar   L Deshacer   R Saltar   START Pausa",
                   RGBA(255, 255, 255, 200), 1);
     dbg_sect_ms[7] = (plat_us() - t4) / 1000.0f;
+}
+
+/* serpiente en posiciones de pantalla dadas (modo clasico): mismas piezas que en el juego */
+void draw_snake_screen(const GState *st, const float *xs, const float *ys, float cell)
+{
+    float save_cs = cs;
+    cs = cell;
+    for (int i = st->n - 1; i >= 0; i--) draw_part(i, st, xs[i], ys[i], WHITE, 1.0f);
+    cs = save_cs;
 }
 
 /* serpiente de muestra (tienda): horizontal mirando a la derecha */

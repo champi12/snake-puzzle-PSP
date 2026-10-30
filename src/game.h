@@ -108,6 +108,7 @@ void play_input(unsigned in, unsigned held);
 void play_update(float dt);
 void play_draw(void);
 void draw_snake_preview(float x, float y, float cs, int len);
+void draw_snake_screen(const GState *st, const float *xs, const float *ys, float cell);
 extern int play_idx;
 extern int play_hint;
 extern Level cur_level;

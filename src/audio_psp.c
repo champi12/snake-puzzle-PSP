@@ -34,6 +34,14 @@ static SceUID mix_th = -1, mus_th = -1, lock = -1;
 static char music_path[2][200];
 static volatile int music_want, music_cur = -1;
 static int mp3_ok;
+static char status[96] = "sin iniciar";
+static volatile int mix_ch = -1, mp3_state;   /* 0 nada, 1 sonando, -1 error */
+const char *audio_status(void)
+{
+    snprintf(status, sizeof(status), "Audio: efectos %s (%d) | musica %s", mix_ch >= 0 ? "OK" : "SIN CANAL",
+             (int)(sfx_blob != NULL), mp3_state > 0 ? "MP3 OK" : mp3_state < 0 ? "ERROR" : mp3_ok ? "esperando" : "sin MP3");
+    return status;
+}
 
 static uint32_t rd32(const uint8_t *p) { return p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24; }
 
@@ -43,6 +51,7 @@ static int mixer_thread(SceSize a, void *p)
     static short __attribute__((aligned(64))) out[2][FRAMES * 2];
     static int acc[FRAMES / 2];
     int ch = sceAudioChReserve(PSP_AUDIO_NEXT_CHANNEL, FRAMES, PSP_AUDIO_FORMAT_STEREO);
+    mix_ch = ch;
     if (ch < 0) dlog_error("AUDIO sceAudioChReserve 0x%08x: sin efectos", ch);
     int buf = 0;
     while (run) {
@@ -107,7 +116,7 @@ static int music_thread(SceSize a, void *p)
             if (mp3_ok) {
                 fd = sceIoOpen(music_path[music_cur], PSP_O_RDONLY, 0);
                 if (fd < 0 && music_cur) fd = sceIoOpen(music_path[0], PSP_O_RDONLY, 0);
-                if (fd < 0) dlog_error("MUSICA no se encuentra %s", music_path[music_cur]);
+                if (fd < 0) { mp3_state = -1; dlog_error("MUSICA no se encuentra %s", music_path[music_cur]); }
                 else {
                     SceMp3InitArg ia;
                     ia.mp3StreamStart = 0;
@@ -121,8 +130,10 @@ static int music_thread(SceSize a, void *p)
                         sceMp3SetLoopNum(handle, -1);
                         rate = sceMp3GetSamplingRate(handle);
                         if (rate <= 0) rate = 44100;
+                        mp3_state = 1;
                         dlog("MUSICA MP3 %s (%d Hz)", music_path[music_cur], rate);
                     } else {
+                        mp3_state = -1;
                         dlog_error("MUSICA no se pudo abrir el MP3 %s (handle 0x%08x)", music_path[music_cur], handle);
                         if (handle >= 0) sceMp3ReleaseMp3Handle(handle);
                         handle = -1;
@@ -172,8 +183,12 @@ int audio_init(const char *dir)
     /* los hilos no tienen directorio actual en la PSP: ruta absoluta */
     if (!getcwd(base, sizeof(base))) strcpy(base, "ms0:/PSP/GAME/SNAKEPZL");
     char path[240];
-    snprintf(path, sizeof(path), "%s/%s/sfx.bin", base, dir);
+    snprintf(path, sizeof(path), "%s/sfx.bin", dir);
     FILE *f = fopen(path, "rb");
+    if (!f) {
+        snprintf(path, sizeof(path), "%s/%s/sfx.bin", base, dir);
+        f = fopen(path, "rb");
+    }
     if (f) {
         fseek(f, 0, SEEK_END);
         long n = ftell(f);

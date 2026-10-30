@@ -14,5 +14,6 @@ void audio_play(int id, float vol);
 /* 0 normal, 1 Ano Nuevo Lunar */
 void audio_music(int which);
 void audio_set_enabled(int sfx, int music);
+const char *audio_status(void);   /* para el medidor de SELECT */
 
 #endif
