@@ -1,0 +1,26 @@
+# datos generados a partir del APK (no se distribuyen)
+data/
+*.apk
+*.xapk
+*.rar
+# compilacion
+*.o
+*.elf
+*.prx
+EBOOT.PBP
+PARAM.SFO
+dist/
+src/*.d
+tests/host_test
+tests/host_shot
+tests/out/
+__pycache__/
+devlog*.txt
+crash*.txt
+trace.txt
+exhandler/*.prx
+exhandler/*.elf
+exhandler/*.o
+exhandler/loader/*.prx
+exhandler/loader/*.elf
+exhandler/loader/*.o
