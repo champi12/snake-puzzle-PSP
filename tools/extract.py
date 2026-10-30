@@ -14,7 +14,10 @@ Genera en data/:
     bgNN.tex     fondos a 480x272 en 16 bits
     font.spr     la fuente del juego (Lilita One) a los tamanos de la interfaz
     sfx.bin      efectos de sonido (PCM 16 bits 22050 Hz mono)
-    music.pcm    musica (PCM 16 bits 22050 Hz mono, se lee a trozos de la Memory Stick)
+    music.mp3    musica (MP3 44,1 kHz: la decodifica el Media Engine de la PSP); music_lunar.mp3 la del
+                 Ano Nuevo Lunar
+    shop.spr     iconos de la tienda y dibujos del progreso de aspectos
+    meta.bin     tienda, progreso de aspectos, recompensa diaria, ranking del modo clasico y top de jugadores
     ICON0.PNG, PIC1.PNG   icono y fondo del menu de la PSP
 
 Nada de esto se guarda en el repositorio: cada uno lo genera con su propia copia del juego.
@@ -307,8 +310,12 @@ UI_SPRITES = ['Logo', 'Background_Home', 'Btn_Play', 'Btn_Green', 'Btn_Gray', 'B
               'Btn_Replay', 'Sound_On', 'Sound_Off', 'Music_On', 'Music_Off', 'Btn_Skin', 'Btn_Settings', 'Btn_Back',
               'Star', 'NumberBox', 'button_home', 'icon_tick', 'Frame', 'Title_Base', 'base_popup', 'Icon_Successful',
               'Icon_Lose', 'Btn_NextLevel', 'icon_Hint', 'Icon_BG', 'Icon_Skin', 'TickIcon', 'Star_banner_win_on',
-              'Star_banner_win_off', 'button_close', 'icon_arrow', 'Btn_Foward', 'Icon_Replay']
-UI_MAXPX = {'Background_Home': 0, 'Logo': 200, 'Popup_Win': 220, 'Popup_Lose': 220, 'base_popup': 220,
+              'Star_banner_win_off', 'button_close', 'icon_arrow', 'Btn_Foward', 'Icon_Replay', 'base_item_daily',
+              'base_item_claimed', 'base_item_day7', 'base_item_day7_claimed', 'reward_skin_1', 'reward_skin_2',
+              'reward_skin_3', 'icon_Hint', 'Icon_SkipLevel', 'Slot_Locked', 'icon_shop', 'icon_daily', 'icon_setting',
+              'Btn_Minigame', 'Title_Rating', 'Icon_Ads', 'NewSkinUnlocked', 'NewBGUnlocked', 'Btn_Skin_Christmas',
+              'button_ranking', 'icon_HOME', 'icon_noti', 'Btn_Move', 'Btn_Move_Active', 'icon_MOVE_0']
+UI_MAXPX = {'NewSkinUnlocked': 160, 'NewBGUnlocked': 160, 'Title_Rating': 160, 'Background_Home': 0, 'Logo': 200, 'Popup_Win': 220, 'Popup_Lose': 220, 'base_popup': 220,
             'Banner_Win': 200, 'Banner_Lose': 200, 'Title_Base': 160, 'Frame': 160}
 
 
@@ -382,7 +389,8 @@ def export_world(G, out):
     uitab = [ui_ids[n] for n in UI_SPRITES]
     size = world.write(os.path.join(out, 'world.spr'))
     with open(os.path.join(out, 'world.idx'), 'wb') as f:
-        f.write(struct.pack('<64h', *((table + portal + stones + uitab) + [-1] * 64)[:64]))
+        allidx = table + portal + stones + uitab
+        f.write(struct.pack('<H', len(allidx)) + struct.pack('<%dh' % len(allidx), *allidx))
     print('  world.spr: %d sprites, %d KB' % (len(world.items), size // 1024))
     # pantalla de inicio (Background_Home) como fondo 0 del menu
     if 'Background_Home' in ui:
@@ -472,6 +480,7 @@ def export_skins(G, out):
 # ---------------------------------------------------------------- fuente
 FONT_SIZES = (12, 16, 22, 30)
 FONT_CHARS = ''.join(chr(c) for c in range(32, 127)) + 'áéíóúÁÉÍÓÚñÑüÜ¡¿·'
+PAD_CHARS = '\u2715\u25cb\u25a1\u25b3'   # botones de la PSP: equis, circulo, cuadrado, triangulo
 
 
 def export_font(G, out):
@@ -496,6 +505,26 @@ def export_font(G, out):
         except Exception:
             font = ImageFont.load_default()
         asc, desc = font.getmetrics()
+        for ch in PAD_CHARS:
+            # dibujados a mano con los colores de la PSP (la fuente no los trae)
+            h = asc + desc + 2
+            w = h
+            im = Image.new('RGBA', (w + 2, h + 2), (0, 0, 0, 0))
+            d = ImageDraw.Draw(im)
+            m = max(2, h // 5)
+            box = (m, m + 1, w - m + 1, h - m + 2)
+            lw = max(1, size // 8)
+            if ch == '\u2715':
+                d.line((box[0], box[1], box[2], box[3]), fill=(110, 150, 255, 255), width=lw + 1)
+                d.line((box[0], box[3], box[2], box[1]), fill=(110, 150, 255, 255), width=lw + 1)
+            elif ch == '\u25cb':
+                d.ellipse(box, outline=(255, 90, 90, 255), width=lw + 1)
+            elif ch == '\u25a1':
+                d.rectangle(box, outline=(255, 120, 220, 255), width=lw + 1)
+            else:
+                d.polygon(((box[0] + box[2]) / 2, box[1], box[2], box[3], box[0], box[3]), outline=(80, 230, 170, 255), width=lw + 1)
+            sh.add_image(im, 0, 0, im.width / 256.0, im.height / 256.0)
+            widths.append(w + 2)
         for ch in FONT_CHARS:
             bb = font.getbbox(ch)
             adv = font.getlength(ch)
@@ -511,9 +540,10 @@ def export_font(G, out):
             widths.append(int(round(adv)))
     sh.write(os.path.join(out, 'font.spr'))
     with open(os.path.join(out, 'font.idx'), 'wb') as f:
-        f.write(struct.pack('<HH', len(FONT_SIZES), len(FONT_CHARS)))
+        chars = PAD_CHARS + FONT_CHARS
+        f.write(struct.pack('<HH', len(FONT_SIZES), len(chars)))
         f.write(struct.pack('<%dH' % len(FONT_SIZES), *FONT_SIZES))
-        f.write(struct.pack('<%dH' % len(FONT_CHARS), *[ord(c) for c in FONT_CHARS]))
+        f.write(struct.pack('<%dH' % len(chars), *[ord(c) for c in chars]))
         f.write(struct.pack('<%dB' % len(widths), *widths))
     print('  fuente: %s' % ('Lilita One del APK' if ttf else 'por defecto (no se encontro la del APK)'))
 
@@ -523,8 +553,8 @@ SFX = ['worm', 'eatapple', 'stop', 'thorn', 'drop', 'move_stone', 'stone_drop', 
        '8bitclick', 'progress', 'rewardpopup', 'unlockskin']
 
 
-def audio_pcm(o):
-    """AudioClip (FSB5 Vorbis) -> PCM float mono a 22050 Hz."""
+def audio_pcm(o, rate_out=22050, mono=True):
+    """AudioClip (FSB5 Vorbis) -> PCM float (mono a 22050 Hz para los efectos)."""
     import fsb5
     import soundfile
     clip = o.read()
@@ -537,9 +567,16 @@ def audio_pcm(o):
     s = fsb.samples[0]
     ogg = fsb.rebuild_sample(s)
     data, rate = soundfile.read(io.BytesIO(ogg), dtype='float32', always_2d=True)
+    if not mono:
+        st = data if data.shape[1] == 2 else np.repeat(data, 2, axis=1)
+        if rate != rate_out:
+            n = int(len(st) * rate_out / rate)
+            x = np.linspace(0, len(st) - 1, n)
+            st = np.stack([np.interp(x, np.arange(len(st)), st[:, c]) for c in range(2)], axis=1)
+        return st
     mono = data.mean(axis=1)
-    if rate != 22050:
-        n = int(len(mono) * 22050 / rate)
+    if rate != rate_out:
+        n = int(len(mono) * rate_out / rate)
         mono = np.interp(np.linspace(0, len(mono) - 1, n), np.arange(len(mono)), mono)
     return mono
 
@@ -568,15 +605,26 @@ def export_audio(G, out):
     body = b''.join(c + b'\0' * (((len(c) + 15) & ~15) - len(c)) for c in clips)
     with open(os.path.join(out, 'sfx.bin'), 'wb') as f:
         f.write(head + tab + body)
-    o = G.get('sounds/bgm', 'AudioClip')
-    if o is not None:
+    # musica en MP3: la decodifica el Media Engine de la PSP (sceMp3), sin gastar CPU
+    import lameenc
+    for clip, fn in (('sounds/bgm', 'music.mp3'), ('sounds/bgm_lunar', 'music_lunar.mp3')):
+        o = G.get(clip, 'AudioClip')
+        if o is None:
+            continue
         try:
-            pcm = audio_pcm(o)
-            with open(os.path.join(out, 'music.pcm'), 'wb') as f:
-                f.write((np.clip(pcm, -1, 1) * 26000).astype('<i2').tobytes())
-            print('  musica: %.0f s' % (len(pcm) / 22050))
+            st = audio_pcm(o, 44100, mono=False)
+            enc = lameenc.Encoder()
+            enc.set_bit_rate(112)
+            enc.set_in_sample_rate(44100)
+            enc.set_channels(2)
+            enc.set_quality(2)
+            pcm = (np.clip(st, -1, 1) * 30000).astype('<i2').tobytes()
+            mp3 = enc.encode(pcm) + enc.flush()
+            with open(os.path.join(out, fn), 'wb') as f:
+                f.write(mp3)
+            print('  musica %s: %.0f s, %d KB' % (fn, len(st) / 44100, len(mp3) // 1024))
         except Exception as e:
-            print('  aviso: no se pudo convertir la musica (%s)' % e)
+            print('  aviso: no se pudo convertir %s (%s)' % (clip, e))
     print('  %d efectos de sonido' % sum(1 for c in clips if c))
 
 
@@ -600,6 +648,111 @@ def export_xmb(G, out):
         icon.convert('RGB').save(os.path.join(out, 'ICON0.PNG'))
 
 
+def row_json(G, o):
+    cl, d = G.mono(o)
+    try:
+        return json.loads(d['serializedRow'])
+    except Exception:
+        return None
+
+
+def export_shop(G, out):
+    """Tienda: iconos de aspectos y fondos (shopitems/), dibujos de la barra de progreso (progress/) y los datos
+    de juego: estado de cada articulo (data/new: ShopInfo), progreso de aspectos (SkinProgress), recompensa diaria,
+    el ranking del modo clasico (ClassicLeaderboardData) y el porcentaje de jugadores por nivel (top_player)."""
+    sh = SpriteSheet(FMT_T8, 512, 512)
+    skin_icon, bg_icon, prog = [], [], []
+    for i in range(32):
+        o = G.get('shopitems/skins/%d' % i, 'Sprite')
+        skin_icon.append(sh.add_unity(o, scale=48, maxpx=56) if o else -1)
+    for i in range(32):
+        o = G.get('shopitems/backgrounds/%d' % i, 'Sprite')
+        bg_icon.append(sh.add_unity(o, scale=48, maxpx=72) if o else -1)
+    for i in range(11):
+        for kind in ('progress/progress_%d', 'progress/full_%d'):
+            o = G.get(kind % i, 'Sprite')
+            prog.append(sh.add_unity(o, scale=48, maxpx=96) if o else -1)
+    sh.write(os.path.join(out, 'shop.spr'))
+    # estado de la tienda (ShopItem: State 0 bloqueado, 2 elegido, 4 recompensa diaria, 6 evento; NeededAdWatchCount)
+    items = None
+    for k, objs in G.container.items():
+        for o in objs:
+            if o.type.name == 'MonoBehaviour':
+                cl, d = G.mono(o)
+                if d and 'shopItems' in d and items is None:
+                    items = d['shopItems']
+    items = items or []
+    sp = None
+    o = G.get('data/skinprogressdata', 'MonoBehaviour')
+    if o is not None:
+        cl, d = G.mono(o)
+        sp = d.get('listProgress') if d else None
+    sp = sp or []
+    daily = []
+    o = G.get('data/dailyreward', 'MonoBehaviour')
+    if o is not None:
+        cl, d = G.mono(o)
+        for r in (d or {}).get('rows', []):
+            ro = G.resolve(o.assets_file, r)
+            j = row_json(G, ro) if ro else None
+            if j:
+                daily.append(j)
+    daily.sort(key=lambda j: j.get('Day', 0))
+    names, lbp = [], (120, 130, 8, 3, 2, 1)
+    f = G.files.get('sharedassets0.assets')
+    for ob in (f.objects.values() if f else []):
+        if ob.type.name == 'MonoBehaviour' and (G.script_of(ob) or ('', '', ''))[2] == 'ClassicLeaderboardData':
+            r = ob.reader
+            r.Position = ob.byte_start
+            b = r.read_bytes(ob.byte_size)
+            p = 28
+            n = struct.unpack_from('<i', b, p)[0]
+            p += 4 + ((n + 3) & ~3)
+            cnt = struct.unpack_from('<i', b, p)[0]
+            p += 4
+            for _ in range(cnt):
+                ln = struct.unpack_from('<i', b, p)[0]
+                p += 4
+                names.append(b[p:p + ln].decode('utf-8', 'replace'))
+                p += (ln + 3) & ~3
+            lbp = struct.unpack_from('<6i', b, p)
+    top = []
+    o = G.get('top_player', 'TextAsset')
+    if o is not None:
+        txt = o.read().m_Script
+        if isinstance(txt, bytes):
+            txt = txt.decode('utf-8', 'replace')
+        for line in txt.splitlines()[1:]:
+            pr = line.split(',')
+            if len(pr) == 2:
+                top.append(float(pr[1]))
+    blob = bytearray(b'META')
+    blob += struct.pack('<H', len(items))
+    for it in items:
+        ev = {'Halloween': 1, 'Xmas': 2, 'Lunar': 3}.get(it.get('Description', ''), 0)
+        blob += struct.pack('<BBBBB', it['Id'], it['ShopType'], it['State'], it['NeededAdWatchCount'], ev)
+    blob += struct.pack('<H', len(sp))
+    for e in sp:
+        blob += struct.pack('<HHBB', e['startLevel'], e['endLevel'], e['id'], e['type'])
+    blob += struct.pack('<H', len(daily))
+    for j in daily:
+        rw = j.get('Reward', {})
+        kind = 1 if j.get('TypeReward') == 'Skin' else 0
+        blob += struct.pack('<BBB', kind, rw.get('Quantity', 1), rw.get('Value', 0))
+    blob += struct.pack('<H', len(names))
+    for n in names:
+        e = n.encode()[:15]
+        blob += struct.pack('<B', len(e)) + e
+    blob += struct.pack('<6i', *lbp)
+    blob += struct.pack('<H', len(top)) + b''.join(struct.pack('<H', int(round(t * 100))) for t in top)
+    blob += struct.pack('<64h', *((skin_icon + bg_icon)[:64]))
+    blob += struct.pack('<22h', *prog[:22])
+    with open(os.path.join(out, 'meta.bin'), 'wb') as fo:
+        fo.write(blob)
+    print('  tienda: %d articulos, %d tramos de progreso, %d dias de recompensa, ranking de %d' %
+          (len(items), len(sp), len(daily), len(names)))
+
+
 def main():
     if len(sys.argv) < 3:
         print(__doc__)
@@ -616,6 +769,8 @@ def main():
     export_skins(G, out)
     print('Fuente...')
     export_font(G, out)
+    print('Tienda y datos de juego...')
+    export_shop(G, out)
     print('Sonido...')
     export_audio(G, out)
     export_xmb(G, out)

@@ -1,0 +1,7 @@
+UnityPy>=1.25
+TypeTreeGeneratorAPI
+numpy
+Pillow
+fsb5
+soundfile
+lameenc
