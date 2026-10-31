@@ -20,10 +20,17 @@ if [ -z "$SNK_ACTUALIZADO" ]; then
     SNK_ACTUALIZADO=1 exec "$0" "$@"
 fi
 
-# escritorios de Windows vistos desde WSL (el primero que exista)
+# escritorios de Windows vistos desde WSL (el primero es el que se usa)
 desktops() {
-    ls -d /mnt/c/Users/*/Desktop /mnt/c/Users/*/Escritorio /mnt/c/Users/*/OneDrive*/Desktop \
-          /mnt/c/Users/*/OneDrive*/Escritorio 2>/dev/null | grep -v -E '/(Public|Default|All Users)/' || true
+    # 1) el escritorio que Windows usa de verdad (si OneDrive lo ha movido, es ...\OneDrive\Escritorio)
+    if command -v powershell.exe > /dev/null; then
+        local w
+        w=$(powershell.exe -NoProfile -Command "[Environment]::GetFolderPath('Desktop')" 2>/dev/null | tr -d '\r')
+        [ -n "$w" ] && w=$(wslpath -u "$w" 2>/dev/null) && [ -d "$w" ] && echo "$w"
+    fi
+    # 2) si no, los de OneDrive primero y luego los normales
+    ls -d /mnt/c/Users/*/OneDrive*/Escritorio /mnt/c/Users/*/OneDrive*/Desktop 2>/dev/null | grep -v -E '/(Public|Default|All Users)/' || true
+    ls -d /mnt/c/Users/*/Escritorio /mnt/c/Users/*/Desktop 2>/dev/null | grep -v -E '/(Public|Default|All Users)/' || true
 }
 
 # es Snake Puzzle? (el XAPK trae el APK puzzle.snakes...; el APK suelto trae assets/bin/Data)
