@@ -14,7 +14,7 @@ static GSteps ST;
 
 static void draw(void)
 {
-    for (int y = G.h - 1; y >= -2; y--) {
+    for (int y = G.h + 2; y >= -2; y--) {
         printf("%4d ", y);
         for (int x = 0; x < G.w; x++) {
             char c = '.';

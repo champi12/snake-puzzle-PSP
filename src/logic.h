@@ -29,6 +29,8 @@ typedef struct {
     uint8_t st_alive[MAX_STONE];
     uint8_t apple_alive[MAX_APPLE];
     uint8_t bar_len[MAX_BAR];  /* largo actual del haz de cada barrera */
+    uint8_t tele;              /* SnakeController.indexMainLoop: partes que ya han salido del portal (sin caida
+                                  mientras no hayan salido todas) */
     uint8_t dead;              /* 0, DEAD_TRAP, DEAD_FALL */
     uint8_t win;
 } GState;

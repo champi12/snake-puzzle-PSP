@@ -129,6 +129,7 @@ void logic_load(GLevel *g, GState *s, const Level *L)
     else if (L->flags & SF_UP) { dir = D_DOWN; ox = 0; oy = 1; }
     else if (L->flags & SF_LEFT) { dir = D_LEFT; ox = 1; oy = 0; }
     s->n = 1;
+    s->tele = 255;
     s->s[0] = (Cell){L->sx, L->sy};
     s->dir = dir;
     s->last_in = dir;
@@ -247,7 +248,8 @@ static void physics(const GLevel *g, GState *s, GSteps *o)
             }
         }
         for (int i = 0; i < s->nstone; i++) s->st_alive[i] &= 1;
-        if (!snake_supported(g, s)) {
+        /* CheckForSnakeFall: nada mientras la serpiente cruza un portal (indexMainLoop < bodyParts.Count) */
+        if (s->tele >= s->n && !snake_supported(g, s)) {
             for (int i = 0; i < s->n; i++) s->s[i].y--;
             moved = 1;
             if (o) o->snake_fell = 1;
@@ -315,18 +317,18 @@ static int push_stone(const GLevel *g, GState *s, int si, int dir)
     return 1;
 }
 
+/* la cabeza esta en la casilla de un portal (SnakeController.currentTeleportGate) */
 int logic_in_gate(const GLevel *g, const GState *s)
 {
     int gi = logic_gate_at(g, s->s[0].x, s->s[0].y);
-    if (gi < 0 || s->n < 2) return 0;
-    int b = g->gate_partner[gi];
-    return b != gi && !(s->s[1].x == g->gate[b].x && s->s[1].y == g->gate[b].y);
+    return gi >= 0 && g->gate_partner[gi] != gi;
 }
 
 /* SnakeController.Move: isReversed = izquierda, o abajo si el paso anterior fue a la izquierda; la parte nueva de la
  * cabeza lo guarda y las demas conservan el suyo (BodyPartInfo.previousIsReversed) */
 static void shift(GState *s, int x, int y, int dir)
 {
+    if (s->tele < s->n) s->tele++;   /* Move -> HideMainBody */
     memmove(&s->s[1], &s->s[0], sizeof(Cell) * (s->n - 1));
     memmove(&s->rev[1], &s->rev[0], s->n - 1);
     s->s[0] = (Cell){x, y};
@@ -340,9 +342,12 @@ int logic_move(const GLevel *g, GState *s, int dir, GSteps *o)
     if (o) memset(o, 0, sizeof(*o));
     if (s->dead || s->win) return MV_NONE;
     int hx = s->s[0].x, hy = s->s[0].y;
-    /* dentro de la entrada de un portal: cualquier boton sigue por el otro (TeleportGate) */
-    if (logic_in_gate(g, s)) {
+    /* HandleMovement: con la cabeza en un portal y pulsando su gateDirection, TeleportGate la saca por el otro.
+     * Con otra direccion se mueve normal (el BoxCollider2D del portal esta desactivado: se entra y sale por
+     * cualquier lado) */
+    if (logic_in_gate(g, s) && dir == g->gate_dir[logic_gate_at(g, hx, hy)]) {
         int b = g->gate_partner[logic_gate_at(g, hx, hy)];
+        s->tele = 0;   /* TeleportGate -> CreateClone */
         shift(s, g->gate[b].x, g->gate[b].y, dir_opposite(g->gate_dir[b]));
         s->dir = dir_opposite(g->gate_dir[b]);
         push_step(o, STEP_MOVE, s);
@@ -390,7 +395,6 @@ int logic_move(const GLevel *g, GState *s, int dir, GSteps *o)
         res = MV_PUSH;
     }
     int gi = logic_gate_at(g, tx, ty);
-    if (gi >= 0 && dir != g->gate_dir[gi]) return MV_BLOCKED;
     shift(s, tx, ty, dir);
     s->dir = dir;
     if (killc(g, tx, ty)) {   /* etiqueta Kill/Saw: la cabeza entra y muere */
