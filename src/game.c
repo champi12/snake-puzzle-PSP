@@ -27,7 +27,8 @@ extern int save_load(void);
 extern int meta_load(const char *path);
 
 static const char *state_names[GS_COUNT] = {"CARGA", "INICIO", "NIVELES", "JUGANDO", "PAUSA", "SUPERADO", "PERDIDO",
-                                             "TIENDA", "DIARIO", "AJUSTES", "CLASICO", "CLASICO_FIN", "PREMIO"};
+                                             "TIENDA", "DIARIO", "AJUSTES", "CLASICO", "CLASICO_FIN", "PREMIO",
+                                             "AW_NIVELES", "AW_SKINS"};
 const char *dbg_state_name(int s) { return s >= 0 && s < GS_COUNT ? state_names[s] : "?"; }
 
 void set_state(int s)

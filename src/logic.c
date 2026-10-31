@@ -144,6 +144,20 @@ void logic_load(GLevel *g, GState *s, const Level *L)
         s->s[i] = (Cell){s->s[i - 1].x + ex, s->s[i - 1].y + ey};
         s->n++;
     }
+    /* niveles de Apple Worm: el cuerpo viene dibujado en el nivel, parte a parte */
+    int nb = 0;
+    for (int i = 0; i < L->nobj; i++)
+        if (L->obj[i].type == O_BODY && L->obj[i].a < MAX_SNAKE) {
+            s->s[L->obj[i].a] = (Cell){L->obj[i].x, L->obj[i].y};
+            if (L->obj[i].a + 1 > nb) nb = L->obj[i].a + 1;
+        }
+    if (nb >= 2) {
+        s->n = nb;
+        int dx = s->s[0].x - s->s[1].x, dy = s->s[0].y - s->s[1].y;
+        s->dir = dx > 0 ? D_RIGHT : dx < 0 ? D_LEFT : dy > 0 ? D_UP : D_DOWN;
+        s->last_in = s->dir;
+        memset(s->rev, s->dir == D_LEFT, sizeof(s->rev));
+    }
 }
 
 /* ---------------------------------------------------------------- fisica */

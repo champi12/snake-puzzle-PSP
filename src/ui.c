@@ -8,6 +8,7 @@
 #include <math.h>
 #include "game.h"
 #include "lang.h"
+#include "aw.h"
 #include "audio.h"
 #include "devlog.h"
 #include "ui_ids.h"
@@ -88,8 +89,10 @@ static void help(const char *t) { text_draw(SCR_W / 2, SCR_H - 16, FONT_S, t, RG
 static int daily_ready(void) { return meta.ndaily > 0 && (unsigned)today_ymd() != sv.daily_last; }
 
 /* ---------------------------------------------------------------- inicio */
-enum { H_PLAY, H_LEVELS, H_CLASSIC, H_SHOP, H_DAILY, H_SETTINGS, H_COUNT };
-static const char *home_labels[H_COUNT] = {"JUGAR", "NIVELES", "CLASICO", "TIENDA", "DIARIO", "AJUSTES"};
+enum { H_PLAY, H_LEVELS, H_AW, H_CLASSIC, H_SHOP, H_DAILY, H_SETTINGS, H_COUNT };
+static const char *home_labels[H_COUNT] = {"JUGAR", "NIVELES", "APPLE WORM", "CLASICO", "TIENDA", "DIARIO", "AJUSTES"};
+/* el boton de Apple Worm solo si hay data/aw */
+static int home_has(int i) { static int aw = -1; if (aw < 0) aw = aw_available(); return i != H_AW || aw; }
 
 static void home_draw(void)
 {
@@ -102,11 +105,16 @@ static void home_draw(void)
     } else
         text_draw(130, 70, FONT_XL, "Snake Puzzle", WHITE, 1);
     draw_snake_preview(130, 178, 22, 5);
-    for (int i = 0; i < H_COUNT; i++) {
+    int nb = 0;
+    for (int i = 0; i < H_COUNT; i++) nb += home_has(i);
+    float step = nb > 6 ? 32 : 37, bh = nb > 6 ? 28 : 32;
+    for (int i = 0, k = 0; i < H_COUNT; i++) {
+        if (!home_has(i)) continue;
         char b[48];
         if (i == H_PLAY) snprintf(b, sizeof(b), T("JUGAR  (nivel %d)"), sv.cur_level + 1);
         else snprintf(b, sizeof(b), "%s%s", T(home_labels[i]), i == H_DAILY && daily_ready() ? "  (!)" : "");
-        draw_button(270, 26 + i * 37, 190, 32, b, sel == i, 1);
+        draw_button(270, 24 + k * step, 190, bh, b, sel == i, 1);
+        k++;
     }
     counters(SCR_H - 40);
     help(T(BTN_X " Aceptar   Cruceta Elegir"));
@@ -123,13 +131,14 @@ static void home_draw(void)
 
 static void home_input(unsigned in)
 {
-    if (in & IN_UP) sel = (sel + H_COUNT - 1) % H_COUNT;
-    if (in & IN_DOWN) sel = (sel + 1) % H_COUNT;
+    if (in & IN_UP) do sel = (sel + H_COUNT - 1) % H_COUNT; while (!home_has(sel));
+    if (in & IN_DOWN) do sel = (sel + 1) % H_COUNT; while (!home_has(sel));
     if (!(in & IN_CROSS)) return;
     play_sfx(SFX_CLICK);
     switch (sel) {
-    case H_PLAY: play_start(sv.cur_level, 0); break;
-    case H_LEVELS: page = sv.cur_level / 15; sel = sv.cur_level % 15; set_state(GS_SELECT); break;
+    case H_PLAY: aw_mode = 0; play_start(sv.cur_level, 0); break;
+    case H_AW: sel = 0; aw_enter(); break;
+    case H_LEVELS: aw_mode = 0; page = sv.cur_level / 15; sel = sv.cur_level % 15; set_state(GS_SELECT); break;
     case H_CLASSIC: classic_start(); break;
     case H_SHOP: shop_tab = 0; sel = 0; set_state(GS_SHOP); break;
     case H_DAILY: sel = 0; set_state(GS_DAILY); break;
@@ -219,10 +228,12 @@ static void pause_input(unsigned in)
     switch (sel) {
     case 0: set_state(GS_PLAY); break;
     case 1: play_start(play_idx, 0); break;
-    case 2: page = play_idx / 15; sel = play_idx % 15; set_state(GS_SELECT); break;
-    case 3: sel = 0; set_state(GS_HOME); break;
+    case 2:
+        if (aw_mode) { set_state(GS_AW_SELECT); break; }
+        page = play_idx / 15; sel = play_idx % 15; set_state(GS_SELECT); break;
+    case 3: sel = 0; set_state(aw_mode ? GS_AW_SELECT : GS_HOME); break;
     }
-    if (gstate != GS_PAUSE && gstate != GS_SELECT) sel = 0;
+    if (gstate != GS_PAUSE && gstate != GS_SELECT && gstate != GS_AW_SELECT) sel = 0;
 }
 
 static void progress_bar(float x, float y, float w)
@@ -253,12 +264,12 @@ static void win_draw(void)
     snprintf(b, sizeof(b), T("Nivel %d completado"), play_idx + 1);
     text_draw(SCR_W / 2, 74, FONT_M, b, TXT_DARK, 1);
     /* top_player.txt: porcentaje de jugadores que no llegaron a este nivel */
-    int pct = play_idx < meta.ntop ? meta.top[play_idx] : 0;
+    int pct = !aw_mode && play_idx < meta.ntop ? meta.top[play_idx] : 0;
     if (pct) {
         snprintf(b, sizeof(b), T("Mejor que el %d,%02d%% de los jugadores"), pct / 100, pct % 100);
         text_draw(SCR_W / 2, 98, FONT_S, b, RGBA(200, 90, 30, 255), 1);
     }
-    progress_bar(140, 124, 150);
+    if (!aw_mode) progress_bar(140, 124, 150);
     static const char *L[] = {"SIGUIENTE", "REPETIR", "INICIO"};
     for (int i = 0; i < 3; i++) draw_button(130 + i * 75, 186, 70, 30, T(L[i]), sel == i, 1);
     help(T(BTN_X " Aceptar   Cruceta Elegir"));
@@ -270,9 +281,10 @@ static void win_input(unsigned in)
     if (in & IN_RIGHT) sel = (sel + 1) % 3;
     if (!(in & IN_CROSS)) return;
     play_sfx(SFX_CLICK);
-    if (sel == 0) play_start(play_idx + 1 < levels.count ? play_idx + 1 : play_idx, 0);
+    int cnt = aw_mode ? aw_levels.count : levels.count;
+    if (sel == 0) play_start(play_idx + 1 < cnt ? play_idx + 1 : play_idx, 0);
     else if (sel == 1) play_start(play_idx, 0);
-    else set_state(GS_HOME);
+    else set_state(aw_mode ? GS_AW_SELECT : GS_HOME);
     sel = 0;
 }
 
@@ -312,12 +324,18 @@ static void lose_input(unsigned in)
     } else if (s == 2) {
         if (sv.skips > 0) {
             sv.skips--;
-            level_set_won(play_idx);
-            if (play_idx + 1 < levels.count && sv.cur_level <= play_idx) sv.cur_level = play_idx + 1;
+            int cnt = aw_mode ? aw_levels.count : levels.count;
+            if (aw_mode) {
+                aw_level_set_won(play_idx);
+                aw_on_win(play_idx, 0);
+            } else {
+                level_set_won(play_idx);
+                if (play_idx + 1 < levels.count && sv.cur_level <= play_idx) sv.cur_level = play_idx + 1;
+            }
             game_save();
-            play_start(play_idx + 1 < levels.count ? play_idx + 1 : play_idx, 0);
+            play_start(play_idx + 1 < cnt ? play_idx + 1 : play_idx, 0);
         } else sel = 2;
-    } else set_state(GS_HOME);
+    } else set_state(aw_mode ? GS_AW_SELECT : GS_HOME);
 }
 
 /* ---------------------------------------------------------------- tienda */
@@ -729,6 +747,8 @@ void ui_input(unsigned in)
     case GS_DAILY: daily_input(in); break;
     case GS_SETTINGS: settings_input(in); break;
     case GS_REWARD: reward_input(in); break;
+    case GS_AW_SELECT: aw_select_input(in); break;
+    case GS_AW_SKINS: aw_skins_input(in); break;
     }
 }
 
@@ -753,6 +773,8 @@ void ui_draw(void)
         if (ui_return_state == GS_WIN || ui_return_state == GS_PLAY) play_draw();
         reward_draw();
         break;
+    case GS_AW_SELECT: aw_select_draw(); break;
+    case GS_AW_SKINS: aw_skins_draw(); break;
     }
     if (msg_t > 0) {
         float w = text_width(FONT_M, msg) + 24;

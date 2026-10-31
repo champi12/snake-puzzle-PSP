@@ -11,6 +11,7 @@
 #include "../src/audio.h"
 #include "../src/devlog.h"
 #include "../src/lang.h"
+#include "../src/aw.h"
 
 /* lo que en la PSP pone devlog.c */
 MemInfo dbg_mem;
@@ -183,6 +184,29 @@ int main(int argc, char **argv)
     shot("diario_cobrado");
     set_state(GS_SETTINGS);
     shot("ajustes");
+    /* Apple Worm: seleccion de nivel, skins y un par de niveles */
+    if (aw_available()) {
+        aw_enter();
+        frames(2, 0);
+        shot("aw_niveles");
+        frames(2, IN_TRIANGLE);
+        frames(2, IN_RIGHT);
+        shot("aw_skins");
+        frames(2, IN_CIRCLE);
+        for (int lv = 0; lv < 2; lv++) {
+            aw_mode = 1;
+            play_start(lv == 0 ? 0 : 29, 0);
+            frames(40, 0);
+            char b[32];
+            snprintf(b, sizeof(b), "aw_nivel%d", lv == 0 ? 1 : 30);
+            shot(b);
+        }
+        aw_mode = 1;
+        play_solution(0, -1);
+        frames(200, 0);
+        shot("aw_superado");
+        aw_mode = 0;
+    }
     classic_start();
     frames(2, IN_UP);
     frames(40, 0);

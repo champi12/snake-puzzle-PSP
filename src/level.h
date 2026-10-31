@@ -14,7 +14,8 @@
 #define LV_MAXHINT 256
 
 /* tipos de objeto (como en tools/levels.py) */
-enum { O_APPLE = 1, O_STONE, O_SPIKE, O_SAW, O_GATE, O_SWITCH, O_BARRIER, O_TUT };
+enum { O_APPLE = 1, O_STONE, O_SPIKE, O_SAW, O_GATE, O_SWITCH, O_BARRIER, O_TUT,
+       O_BODY /* Apple Worm: parte del cuerpo; a = posicion contando desde la cabeza */ };
 
 /* direcciones del enum del original (ToolHint.AppendMovement): 0 arriba, 1 abajo, 2 izquierda, 3 derecha */
 enum { D_UP = 0, D_DOWN, D_LEFT, D_RIGHT };

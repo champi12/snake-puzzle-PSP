@@ -9,7 +9,7 @@
 /* pantallas (los nombres van al devlog: dbg_state_name) */
 enum {
     GS_LOADING, GS_HOME, GS_SELECT, GS_PLAY, GS_PAUSE, GS_WIN, GS_LOSE, GS_SHOP, GS_DAILY, GS_SETTINGS, GS_CLASSIC,
-    GS_CLASSIC_END, GS_REWARD, GS_COUNT
+    GS_CLASSIC_END, GS_REWARD, GS_AW_SELECT, GS_AW_SKINS, GS_COUNT
 };
 
 /* botones (los traduce main.c desde la PSP) */
@@ -25,6 +25,7 @@ enum {
 #define BTN_TRI "\xe2\x96\xb3"
 
 #define MAX_LEVELS 300
+#define AW_MAX_LEVELS 160
 #define MAX_SKINS 32
 #define MAX_BGS 32
 
@@ -46,6 +47,12 @@ typedef struct {
     uint8_t event_done;
     uint32_t total_wins;
     uint32_t play_seconds;
+    /* Apple Worm (anadido despues: una partida vieja sin estos campos se carga igual, a cero) */
+    uint16_t aw_cur;               /* nivel de Apple Worm en curso */
+    uint8_t aw_won[AW_MAX_LEVELS / 8 + 1];
+    uint32_t aw_skins_owned;       /* skins de Apple Worm (bit = posicion en skins.json) */
+    uint8_t aw_skin;
+    uint32_t coins;                /* monedas de Apple Worm (coinsReward de cada nivel) */
 } Save;
 extern Save sv;
 

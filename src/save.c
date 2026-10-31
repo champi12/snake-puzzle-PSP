@@ -1,6 +1,7 @@
 /* save.c - partida guardada en la carpeta del juego (save.dat) y datos de meta.bin */
 #include <stdio.h>
 #include <string.h>
+#include <stddef.h>
 #include "game.h"
 #include "devlog.h"
 
@@ -23,6 +24,7 @@ void save_defaults(void)
     sv.skins_owned = 1;            /* aspecto 0 (ShopItem Id 0, State 2) */
     sv.bgs_owned = 1;
     sv.sound = sv.music = 1;
+    sv.aw_skins_owned = 1;         /* skin Original de Apple Worm */
 }
 
 static char save_path[200], tmp_path[200];
@@ -39,13 +41,17 @@ int save_load(void)
     FILE *f = fopen(save_path, "rb");
     if (!f) return -1;
     Save tmp;
-    int ok = fread(&tmp, 1, sizeof(tmp), f) == sizeof(tmp) && tmp.magic == SAVE_MAGIC && tmp.version == SAVE_VERSION;
+    memset(&tmp, 0, sizeof(tmp));
+    /* una partida de antes de Apple Worm es mas corta: lo que falta queda a cero */
+    size_t n = fread(&tmp, 1, sizeof(tmp), f);
+    int ok = n >= offsetof(Save, aw_cur) && tmp.magic == SAVE_MAGIC && tmp.version == SAVE_VERSION;
     fclose(f);
     if (!ok) {
         dlog("AVISO save.dat no valido: se empieza de cero");
         return -2;
     }
     sv = tmp;
+    sv.aw_skins_owned |= 1;        /* la skin Original de Apple Worm siempre (tambien en partidas de antes) */
     return 0;
 }
 

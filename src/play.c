@@ -8,6 +8,7 @@
 #include <math.h>
 #include "game.h"
 #include "lang.h"
+#include "aw.h"
 #include "audio.h"
 #include "devlog.h"
 #include "ui_ids.h"
@@ -59,9 +60,12 @@ static float sy(float cy) { return oy + (G.h - cy - 0.5f) * cs; }
 void play_start(int idx, int hint_mode)
 {
     if (idx < 0) idx = 0;
-    if (idx >= levels.count) idx = levels.count - 1;
-    if (play_idx != idx) {
-        if (level_get(&levels, idx, &cur_level)) {
+    const LevelPack *pk = aw_mode ? &aw_levels : &levels;
+    if (idx >= pk->count) idx = pk->count - 1;
+    static int last_aw = -1;
+    if (play_idx != idx || last_aw != aw_mode) {
+        last_aw = aw_mode;
+        if (level_get(pk, idx, &cur_level)) {
             dlog_error("nivel %d no valido", idx);
             return;
         }
@@ -168,12 +172,18 @@ void play_input(unsigned in, unsigned held)
     if (in & IN_R) {                  /* saltar nivel (Icon_SkipLevel) */
         if (sv.skips > 0) {
             sv.skips--;
-            level_set_won(play_idx);
-            if (play_idx + 1 < levels.count && sv.cur_level <= play_idx) sv.cur_level = play_idx + 1;
+            if (aw_mode) {
+                aw_level_set_won(play_idx);
+                aw_on_win(play_idx, 0);
+            } else {
+                level_set_won(play_idx);
+                if (play_idx + 1 < levels.count && sv.cur_level <= play_idx) sv.cur_level = play_idx + 1;
+            }
             game_save();
             play_sfx(SFX_CLICK);
             dlog("SALTO nivel %d", cur_level.num);
-            play_start(play_idx + 1 < levels.count ? play_idx + 1 : play_idx, 0);
+            int cnt = aw_mode ? aw_levels.count : levels.count;
+            play_start(play_idx + 1 < cnt ? play_idx + 1 : play_idx, 0);
         } else
             ui_message(T("No te quedan saltos de nivel"), 1.5f);
     }
@@ -181,6 +191,17 @@ void play_input(unsigned in, unsigned held)
 
 static void on_win(void)
 {
+    if (aw_mode) {
+        int first = !aw_level_won(play_idx);
+        aw_level_set_won(play_idx);
+        sv.total_wins++;
+        aw_on_win(play_idx, first);
+        game_save();
+        dlog("APPLE WORM superado nivel %d en %d movimientos", play_idx + 1, moves);
+        play_sfx(SFX_WIN);
+        set_state(GS_WIN);
+        return;
+    }
     int first = !level_won(play_idx);
     level_set_won(play_idx);
     sv.total_wins++;
@@ -534,23 +555,85 @@ static void draw_objects(const GState *s, const GState *from, float t)
     dbg_sect_ms[2] += (plat_us() - t0) / 1000.0f;
 }
 
+/* ---------------------------------------------------------------- niveles de Apple Worm */
+static int aw_solid(int x, int y) { return x >= 0 && y >= 0 && x < G.w && y < G.h && G.solid[y * LV_MAXW + x]; }
+
+/* Block_<arriba><derecha><abajo><izquierda>f: el relieve de arriba y de la izquierda lo tapa el vecino, asi que se
+ * dibuja de abajo arriba y de derecha a izquierda */
+static void aw_draw_tiles(void)
+{
+    for (int y = 0; y < G.h; y++)
+        for (int x = G.w - 1; x >= 0; x--) {
+            if (!aw_solid(x, y)) continue;
+            int m = aw_solid(x, y + 1) << 3 | aw_solid(x + 1, y) << 2 | aw_solid(x, y - 1) << 1 | aw_solid(x - 1, y);
+            gfx_sprite(&aw_sheet, aw_spr(AW_BLOCK0 + m), sx(x), sy(y), cs, 0, 0, WHITE);
+        }
+}
+
+/* pinchos: apuntan hacia fuera del suelo al que estan pegados */
+static int aw_spike_rot(int x, int y)
+{
+    if (aw_solid(x, y - 1)) return 0;
+    if (aw_solid(x, y + 1)) return 2;
+    if (aw_solid(x - 1, y)) return 3;
+    if (aw_solid(x + 1, y)) return 1;
+    return 0;
+}
+
+static void aw_draw_objects(const GState *s, const GState *from, float t, int front)
+{
+    if (!front) {
+        gfx_sprite(&aw_sheet, aw_spr(AW_PORTAL_BG), sx(G.gx), sy(G.gy), cs, 0, 0, WHITE);
+        gfx_sprite_angle(&aw_sheet, aw_spr(AW_PORTAL_SW), sx(G.gx), sy(G.gy), cs, goal_ang, WHITE);
+    }
+    for (int i = 0; i < cur_level.nobj; i++) {
+        const LvObj *o = &cur_level.obj[i];
+        if (o->type == O_SPIKE)
+            gfx_sprite(&aw_sheet, aw_spr(front ? AW_SPIKES_F : AW_SPIKES_B), sx(o->x), sy(o->y), cs,
+                       aw_spike_rot(o->x, o->y), 0, WHITE);
+        else if (o->type == O_SAW && !front)
+            gfx_sprite_angle(&aw_sheet, aw_spr(AW_SAW), sx(o->x), sy(o->y), cs, saw_ang, WHITE);
+    }
+    if (front) return;
+    for (int a = 0; a < G.napple; a++)
+        if (s->apple_alive[a])
+            gfx_sprite(&aw_sheet, aw_spr(AW_APPLE), sx(G.apple[a].x), sy(G.apple[a].y) + sinf(gtime * 3 + a) * cs * 0.03f,
+                       cs, 0, 0, WHITE);
+    for (int i = 0; i < s->nstone; i++) {
+        if (!s->st_alive[i]) continue;
+        float fx = s->st[i].x, fy = s->st[i].y;
+        if (i < from->nstone && from->st_alive[i]) {
+            float dx = fx - from->st[i].x, dy = fy - from->st[i].y;
+            if (fabsf(dx) + fabsf(dy) <= 1.01f) {
+                fx = from->st[i].x + dx * t;
+                fy = from->st[i].y + dy * t;
+            }
+        }
+        gfx_sprite(&aw_sheet, aw_spr(AW_STONE), sx(fx), sy(fy), cs, 0, 0, WHITE);
+    }
+}
+
 void play_draw(void)
 {
     unsigned t0 = plat_us();
-    gfx_bg(&bg_tex, WHITE);
+    gfx_bg(aw_mode && aw_bg.pixels ? &aw_bg : &bg_tex, WHITE);
     unsigned t1 = plat_us();
     const GState *to = animating() ? &steps.step[step_i].st : &S;
     float t = animating() ? step_t : 1;
     /* orden de dibujo del original (sortingOrder): Border -10, bordes de piedra -2/-1, suelo 10; los objetos y la
      * serpiente encima del suelo para que no los corte el relieve de las casillas */
-    draw_tiles(0);
-    draw_stones(to, &shown_from, t, 0);
-    draw_tiles(1);
+    if (aw_mode) aw_draw_tiles();
+    else {
+        draw_tiles(0);
+        draw_stones(to, &shown_from, t, 0);
+        draw_tiles(1);
+    }
     unsigned t2 = plat_us();
     dbg_sect_ms[0] = (t1 - t0) / 1000.0f;
     dbg_sect_ms[1] = (t2 - t1) / 1000.0f;
     dbg_sect_ms[2] = 0;
-    draw_objects(to, &shown_from, t);
+    if (aw_mode) aw_draw_objects(to, &shown_from, t, 0);
+    else draw_objects(to, &shown_from, t);
     unsigned t3 = plat_us();
     if (S.win && !animating()) {
         draw_snake_enter(&S, win_t / ENTER_T);
@@ -559,7 +642,8 @@ void play_draw(void)
         gfx_sprite_angle(&world, WSPR(W_GOAL), sx(G.gx), sy(G.gy), cs * grow, goal_ang + win_t * win_t * 6, WHITE);
     } else
         draw_snake(&shown_from, to, t, 0);
-    draw_stones(to, &shown_from, t, 1);   /* Stone_0 (orden 8) por delante de la serpiente (4) */
+    if (aw_mode) aw_draw_objects(to, &shown_from, t, 1);   /* pinchos de delante */
+    else draw_stones(to, &shown_from, t, 1);   /* Stone_0 (orden 8) por delante de la serpiente (4) */
     /* portales: parte de delante (tapa la serpiente al entrar) */
     for (int g = 0; g < G.ngate; g++)
         gfx_sprite(&world, WSPR(W_PORTAL_FRONT), sx(G.gate[g].x), sy(G.gate[g].y), cs, rot_of(G.gate_dir[g]), 0, WHITE);
@@ -576,7 +660,8 @@ void play_draw(void)
     unsigned t4 = plat_us();
     gfx_fill(0, 0, SCR_W, 22, RGBA(0, 0, 0, 90));
     char b[64];
-    snprintf(b, sizeof(b), T("NIVEL %d"), play_idx + 1);
+    if (aw_mode) snprintf(b, sizeof(b), "APPLE WORM %d", play_idx + 1);
+    else snprintf(b, sizeof(b), T("NIVEL %d"), play_idx + 1);
     text_draw(SCR_W / 2, 2, FONT_M, b, WHITE, 1);
     gfx_sprite_fit(&world, WSPR(UI_ICON_HINT), 12, 11, 18, 18, WHITE);
     snprintf(b, sizeof(b), "%d", sv.hints);

@@ -65,6 +65,15 @@ static const char *const tr[][2] = {
     {BTN_X " Otra vez   " BTN_O " Inicio", BTN_X " Play again   " BTN_O " Home"},
     {"Cruceta Girar   START Pausa   " BTN_O " Salir", "D-pad Turn   START Pause   " BTN_O " Exit"},
     {"NUEVO PRIMER PUESTO!", "NEW FIRST PLACE!"}, {"RANKING", "RANKING"},
+    /* Apple Worm */
+    {"APPLE WORM", "APPLE WORM"}, {"%s  -  supera %d niveles", "%s  -  beat %d levels"},
+    {"%s  -  " BTN_X " %d monedas", "%s  -  " BTN_X " %d coins"}, {"Equipar", "Equip"},
+    {"Faltan los datos de Apple Worm (data/aw)", "Apple Worm data is missing (data/aw)"},
+    {"Faltan monedas: se ganan superando niveles de Apple Worm", "Not enough coins: earn them by beating Apple Worm levels"},
+    {"Se consigue superando niveles de Apple Worm", "Unlocked by beating Apple Worm levels"},
+    {"Skin nueva desbloqueada!", "New skin unlocked!"},
+    {BTN_X " Jugar   " BTN_TRI " Skins   " BTN_O " Volver   L/R Pagina", BTN_X " Play   " BTN_TRI " Skins   " BTN_O " Back   L/R Page"},
+    {BTN_X " Elegir/comprar   " BTN_O " Volver", BTN_X " Select/buy   " BTN_O " Back"},
 };
 
 const char *T(const char *es)

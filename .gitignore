@@ -27,3 +27,4 @@ exhandler/loader/*.elf
 exhandler/loader/*.o
 data.new/
 juego/
+juego_aw/
