@@ -98,9 +98,13 @@ Toolchain [pspdev](https://github.com/pspdev/pspdev) (la compilada para Linux si
     make                # genera EBOOT.PBP
     ./build_dist.sh     # arma dist/PSP/GAME/SNAKEPZL con el EBOOT y data/
 
-La compilacion normal es la version publica: no escribe nada en la Memory Stick salvo la partida (`save.dat`).
-`make DEVLOG=1` (o `DEVLOG=1 ./build_dist.sh`) genera la version de pruebas, con el registro `devlog.txt` y el
-capturador de cuelgues `crash.txt` (ver [docs/RENDIMIENTO.md](docs/RENDIMIENTO.md)).
+Como en Subway Surfers, la compilacion normal es la version de pruebas: escribe el registro `devlog.txt` (en la
+carpeta del juego; si no se puede, en `ms0:/PSP/GAME/SNAKEPZL/` o en `ms0:/devlog_snakepuzzle.txt`) y el capturador
+de cuelgues `crash.txt` (ver [docs/RENDIMIENTO.md](docs/RENDIMIENTO.md)). La pantalla de inicio muestra donde se
+esta escribiendo el devlog y el estado del audio. `make DEVLOG=0` (o `DEVLOG=0 ./build_dist.sh`) genera la version
+publica, que solo guarda la partida (`save.dat`).
+
+Idioma: los textos salen en espanol si la consola esta en espanol y en ingles con cualquier otro idioma.
 
 ### Pruebas en el PC (sin PSP)
 
