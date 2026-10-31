@@ -122,17 +122,8 @@ void shop_unlock_check(void)
         reward_popup(meta.prog[i].type, id);
         dlog("PREMIO por progreso: %s %d", meta.prog[i].type ? "fondo" : "aspecto", id);
     }
-    /* articulos de evento: se regalan mientras dura el evento (en el original, el evento los desbloqueaba) */
-    int ev = event_now();
-    if (ev) {
-        for (int i = 0; i < meta.nshop; i++) {
-            const ShopItemDef *d = &meta.shop[i];
-            if (d->state == 6 && d->event == ev) {
-                if (d->type == 0 && !skin_available(d->id)) { sv.skins_owned |= 1u << d->id; reward_popup(0, d->id); }
-                if (d->type == 1 && !bg_available(d->id)) { sv.bgs_owned |= 1u << d->id; reward_popup(1, d->id); }
-            }
-        }
-    }
+    /* los articulos de evento ya no se regalan al abrir el juego: durante su evento se consiguen en la tienda con
+     * fichas (ui.c, item_need) */
     (void)shop_def;
 }
 

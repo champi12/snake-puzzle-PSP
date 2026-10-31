@@ -355,7 +355,9 @@ def export_worm_skins(get, skins, out, apple_img):
             base = head_sq.copy()
             base.alpha_composite(im)
             return base
-        frames = ([face('static', 0)] * 3 + [face('idle_1', f / 4) for f in range(5)] +
+        # reposo y "parpadeo" con la cara quieta: la animacion idle_1 de Apple Worm mueve la cara entera
+        still = face('static', 0)
+        frames = ([still] * 3 + [still] * 5 +
                   [face('eating', f / 9) for f in range(10)] + [face('near_apple_start', f / 4) for f in range(5)] +
                   [face('near_wall_start', f / 3) for f in range(4)] + [face('dead', 1)])
         for im in frames:

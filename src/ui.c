@@ -395,6 +395,8 @@ static int item_need(int type, int id, const char **why)
         }
     if (d && d->state == 6) {
         *why = T(d->event == 1 ? "Evento de Halloween" : d->event == 2 ? "Evento de Navidad" : "Evento especial");
+        /* durante su evento se consigue con fichas, como los demas; fuera de el, bloqueado */
+        if (event_now() == d->event) return d->need ? d->need : 3;
         return -1;
     }
     *why = NULL;
