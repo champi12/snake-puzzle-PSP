@@ -93,13 +93,15 @@ static int log2i(int v)
     return r;
 }
 
+int gfx_vram_off;
+
 int be_tex_upload(Tex *t)
 {
     /* la VRAM se reparte de abajo arriba y no se libera pieza a pieza: los fondos y los aspectos se cargan siempre
      * en el mismo hueco (ver gfx_vram_mark / gfx_vram_reset en main.c) */
     uint32_t need = (t->bytes + 63) & ~63u;
     uint32_t clut_bytes = t->fmt == TF_T8 ? 1024 : 0;
-    if (vram_top + need + clut_bytes <= VRAM_SIZE) {
+    if (!gfx_vram_off && vram_top + need + clut_bytes <= VRAM_SIZE) {
         uint8_t *dst = (uint8_t *)sceGeEdramGetAddr() + vram_top;
         if (clut_bytes) {
             /* la paleta se queda en la RAM (sceGuClutLoad la copia al GE); se mueven solo los indices */

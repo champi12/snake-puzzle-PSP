@@ -89,5 +89,6 @@ void be_bind(const Tex *t);
 void be_quad(const float *xyuv, uint32_t color);
 void be_fill(float x, float y, float w, float h, uint32_t color);
 int be_tex_upload(Tex *t);     /* la PSP copia a la VRAM si cabe */
+extern int gfx_vram_off;       /* 1: las texturas que se carguen se quedan en la RAM (vistas previas) */
 
 #endif

@@ -342,6 +342,24 @@ static void lose_input(unsigned in)
 }
 
 /* ---------------------------------------------------------------- tienda */
+/* hoja del aspecto bajo el cursor, en la RAM (no toca la VRAM del aspecto y el fondo equipados) */
+static Sheet prev_sheet;
+static int prev_id = -1;
+static int preview_skin(int id)
+{
+    if (id == prev_id) return 1;
+    sheet_free(&prev_sheet);
+    prev_id = -1;
+    char p[64];
+    if (id >= AW_SKIN0) snprintf(p, sizeof(p), "data/aw/skin%02d.spr", id - AW_SKIN0);
+    else snprintf(p, sizeof(p), "data/skin%02d.spr", id);
+    gfx_vram_off = 1;
+    int ok = sheet_load(&prev_sheet, p) == 0;
+    gfx_vram_off = 0;
+    if (ok) prev_id = id;
+    return ok;
+}
+
 void ui_open_shop(void)
 {
     shop_tab = 0;
@@ -531,11 +549,16 @@ static void shop_draw(void)
         help(T(BTN_X " Comprar con fichas   " BTN_O " Volver   L/R Pestana"));
         return;
     }
-    /* vista previa */
+    /* vista previa: el personaje entero (con la misma logica de piezas que en la partida) */
     draw_panel(8, 40, 200, 196);
     int id = shop_list[sel];
     if (shop_tab == 0 && id == sv.skin) draw_snake_preview(108, 112, 26, 5);
-    else {
+    else if (shop_tab == 0 && preview_skin(id)) {
+        Sheet save = skin_sheet;
+        skin_sheet = prev_sheet;
+        draw_snake_preview(108, 112, 26, 5);
+        skin_sheet = save;
+    } else {
         item_icon(shop_tab, id, 108, 112, shop_tab ? 170 : 110, 110, WHITE);
     }
     char b[64];
