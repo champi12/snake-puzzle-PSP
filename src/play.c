@@ -7,6 +7,7 @@
 #include <string.h>
 #include <math.h>
 #include "game.h"
+#include "lang.h"
 #include "audio.h"
 #include "devlog.h"
 #include "ui_ids.h"
@@ -155,14 +156,14 @@ void play_input(unsigned in, unsigned held)
     if (in & IN_SQUARE) {             /* pista: vuelve a empezar y ensena la solucion paso a paso */
         if (play_hint) return;
         if (!cur_level.nhint) {
-            ui_message("Este nivel no tiene pista", 1.5f);
+            ui_message(T("Este nivel no tiene pista"), 1.5f);
         } else if (sv.hints > 0) {
             sv.hints--;
             game_save();
             play_sfx(SFX_REWARD);
             play_start(play_idx, 1);
         } else
-            ui_message("No te quedan pistas: consiguelas en el Diario y en el modo Clasico", 2.5f);
+            ui_message(T("No te quedan pistas: consiguelas en el Diario y en el modo Clasico"), 2.5f);
     }
     if (in & IN_R) {                  /* saltar nivel (Icon_SkipLevel) */
         if (sv.skips > 0) {
@@ -174,7 +175,7 @@ void play_input(unsigned in, unsigned held)
             dlog("SALTO nivel %d", cur_level.num);
             play_start(play_idx + 1 < levels.count ? play_idx + 1 : play_idx, 0);
         } else
-            ui_message("No te quedan saltos de nivel", 1.5f);
+            ui_message(T("No te quedan saltos de nivel"), 1.5f);
     }
 }
 
@@ -575,7 +576,7 @@ void play_draw(void)
     unsigned t4 = plat_us();
     gfx_fill(0, 0, SCR_W, 22, RGBA(0, 0, 0, 90));
     char b[64];
-    snprintf(b, sizeof(b), "NIVEL %d", play_idx + 1);
+    snprintf(b, sizeof(b), T("NIVEL %d"), play_idx + 1);
     text_draw(SCR_W / 2, 2, FONT_M, b, WHITE, 1);
     gfx_sprite_fit(&world, WSPR(UI_ICON_HINT), 12, 11, 18, 18, WHITE);
     snprintf(b, sizeof(b), "%d", sv.hints);
@@ -583,12 +584,12 @@ void play_draw(void)
     gfx_sprite_fit(&world, WSPR(UI_ICON_SKIPLEVEL), 52, 11, 18, 18, WHITE);
     snprintf(b, sizeof(b), "%d", sv.skips);
     text_draw(64, 3, FONT_S, b, WHITE, 0);
-    snprintf(b, sizeof(b), "Movs. %d", moves);
+    snprintf(b, sizeof(b), T("Movs. %d"), moves);
     text_draw(SCR_W - 6, 3, FONT_S, b, WHITE, 2);
     if (gstate == GS_PLAY)
         text_draw(SCR_W / 2, SCR_H - 15, FONT_S,
-                  play_hint ? "PISTA: sigue la flecha   " BTN_TRI " Reiniciar   START Pausa"
-                            : BTN_SQ " Pista   " BTN_TRI " Reiniciar   L Deshacer   R Saltar   START Pausa",
+                  T(play_hint ? "PISTA: sigue la flecha   " BTN_TRI " Reiniciar   START Pausa"
+                              : BTN_SQ " Pista   " BTN_TRI " Reiniciar   L Deshacer   R Saltar   START Pausa"),
                   RGBA(255, 255, 255, 200), 1);
     dbg_sect_ms[7] = (plat_us() - t4) / 1000.0f;
 }

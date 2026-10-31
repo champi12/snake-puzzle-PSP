@@ -11,7 +11,7 @@ host_test: host_test.c $(SRC)/level.c $(SRC)/logic.c
 	$(CC) $(CFLAGS) -o $@ $^
 
 host_shot: host_main.c gfx_host.c $(SRC)/gfx.c $(SRC)/level.c $(SRC)/logic.c $(SRC)/game.c $(SRC)/play.c \
-           $(SRC)/ui.c $(SRC)/classic.c $(SRC)/save.c
+           $(SRC)/ui.c $(SRC)/classic.c $(SRC)/save.c $(SRC)/lang.c
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 check: host_test

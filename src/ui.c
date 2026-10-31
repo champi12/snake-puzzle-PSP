@@ -7,6 +7,7 @@
 #include <string.h>
 #include <math.h>
 #include "game.h"
+#include "lang.h"
 #include "audio.h"
 #include "devlog.h"
 #include "ui_ids.h"
@@ -78,7 +79,7 @@ static void counters(float y)
     snprintf(b, sizeof(b), "%d", sv.skips);
     text_draw(78, y, FONT_M, b, WHITE, 0);
     gfx_sprite_fit(&world, WSPR(UI_STAR), 114, y + 9, 20, 20, WHITE);
-    snprintf(b, sizeof(b), "%d fichas", sv.tokens);
+    snprintf(b, sizeof(b), T("%d fichas"), sv.tokens);
     text_draw(128, y, FONT_M, b, WHITE, 0);
 }
 
@@ -103,12 +104,12 @@ static void home_draw(void)
     draw_snake_preview(130, 178, 22, 5);
     for (int i = 0; i < H_COUNT; i++) {
         char b[48];
-        if (i == H_PLAY) snprintf(b, sizeof(b), "JUGAR  (nivel %d)", sv.cur_level + 1);
-        else snprintf(b, sizeof(b), "%s%s", home_labels[i], i == H_DAILY && daily_ready() ? "  (!)" : "");
+        if (i == H_PLAY) snprintf(b, sizeof(b), T("JUGAR  (nivel %d)"), sv.cur_level + 1);
+        else snprintf(b, sizeof(b), "%s%s", T(home_labels[i]), i == H_DAILY && daily_ready() ? "  (!)" : "");
         draw_button(270, 26 + i * 37, 190, 32, b, sel == i, 1);
     }
     counters(SCR_H - 40);
-    help(BTN_X " Aceptar   Cruceta Elegir");
+    help(T(BTN_X " Aceptar   Cruceta Elegir"));
 #if DEVLOG
     {
         /* para saber sin buscar archivos si el devlog se escribe y si el audio arranco */
@@ -145,7 +146,7 @@ static void select_draw(void)
     gfx_fill(0, 0, SCR_W, SCR_H, RGBA(0, 0, 0, 60));
     int pages = (levels.count + 14) / 15;
     char b[48];
-    snprintf(b, sizeof(b), "NIVELES   %d / %d", page + 1, pages);
+    snprintf(b, sizeof(b), T("NIVELES   %d / %d"), page + 1, pages);
     text_draw(SCR_W / 2, 6, FONT_L, b, WHITE, 1);
     for (int k = 0; k < 15; k++) {
         int i = page * 15 + k;
@@ -161,7 +162,7 @@ static void select_draw(void)
         if (!open) gfx_sprite_fit(&world, WSPR(UI_SLOT_LOCKED), x + 22, y + 14, 20, 20, WHITE);
         if (level_won(i)) gfx_sprite_fit(&world, WSPR(UI_ICON_TICK), x + 24, y + 16, 22, 22, WHITE);
     }
-    help(BTN_X " Jugar   " BTN_O " Volver   L/R Cambiar de pagina");
+    help(T(BTN_X " Jugar   " BTN_O " Volver   L/R Cambiar de pagina"));
 }
 
 static void select_input(unsigned in)
@@ -184,7 +185,7 @@ static void select_input(unsigned in)
     if (in & IN_CROSS) {
         int i = page * 15 + sel;
         if (level_open(i)) { play_sfx(SFX_CLICK); play_start(i, 0); }
-        else { play_sfx(SFX_STOP); ui_message("Supera los niveles anteriores para abrir este", 1.5f); }
+        else { play_sfx(SFX_STOP); ui_message(T("Supera los niveles anteriores para abrir este"), 1.5f); }
     }
 }
 
@@ -193,12 +194,12 @@ static void pause_draw(void)
 {
     gfx_fill(0, 0, SCR_W, SCR_H, RGBA(0, 0, 0, 120));
     draw_panel(140, 30, 200, 215);
-    text_draw(SCR_W / 2, 40, FONT_L, "PAUSA", TXT_DARK, 1);
+    text_draw(SCR_W / 2, 40, FONT_L, T("PAUSA"), TXT_DARK, 1);
     static const char *L[] = {"CONTINUAR", "REINICIAR", "NIVELES", "INICIO"};
-    for (int i = 0; i < 4; i++) draw_button(165, 76 + i * 38, 150, 32, L[i], sel == i, 1);
+    for (int i = 0; i < 4; i++) draw_button(165, 76 + i * 38, 150, 32, T(L[i]), sel == i, 1);
     gfx_sprite_fit(&world, WSPR(sv.sound ? UI_SOUND_ON : UI_SOUND_OFF), 172, 234, 30, 30, WHITE);
     gfx_sprite_fit(&world, WSPR(sv.music ? UI_MUSIC_ON : UI_MUSIC_OFF), 308, 234, 30, 30, WHITE);
-    help(BTN_X " Aceptar   " BTN_SQ " Sonido   " BTN_TRI " Musica   START Seguir");
+    help(T(BTN_X " Aceptar   " BTN_SQ " Sonido   " BTN_TRI " Musica   START Seguir"));
 }
 
 static void toggle_audio(unsigned in)
@@ -235,7 +236,7 @@ static void progress_bar(float x, float y, float w)
     gfx_fill(x, y, w, 12, RGBA(0, 0, 0, 120));
     gfx_fill(x + 2, y + 2, (w - 4) * f, 8, RGBA(250, 200, 40, 255));
     char b[64];
-    snprintf(b, sizeof(b), "%s nuevo: %d%%", type ? "Fondo" : "Aspecto", (int)(f * 100));
+    snprintf(b, sizeof(b), T(type ? "Fondo nuevo: %d%%" : "Aspecto nuevo: %d%%"), (int)(f * 100));
     text_draw(x + w / 2, y + 14, FONT_S, b, TXT_DARK, 1);
     int icon = type ? meta.bg_icon[id & 31] : meta.skin_icon[id & 31];
     if (icon >= 0) gfx_sprite_fit(&shop_sheet, icon, x + w + 26, y + 8, 40, 40, f >= 1 ? WHITE : RGBA(120, 120, 120, 255));
@@ -247,20 +248,20 @@ static void win_draw(void)
     draw_panel(110, 40, 260, 200);
     int ban = WSPR(UI_BANNER_WIN);
     if (ban >= 0) gfx_sprite_rect(&world, ban, 140, 18, 200, 50, WHITE);
-    text_draw(SCR_W / 2, 30, FONT_L, "SUPERADO!", WHITE, 1);
+    text_draw(SCR_W / 2, 30, FONT_L, T("SUPERADO!"), WHITE, 1);
     char b[96];
-    snprintf(b, sizeof(b), "Nivel %d completado", play_idx + 1);
+    snprintf(b, sizeof(b), T("Nivel %d completado"), play_idx + 1);
     text_draw(SCR_W / 2, 74, FONT_M, b, TXT_DARK, 1);
     /* top_player.txt: porcentaje de jugadores que no llegaron a este nivel */
     int pct = play_idx < meta.ntop ? meta.top[play_idx] : 0;
     if (pct) {
-        snprintf(b, sizeof(b), "Mejor que el %d,%02d%% de los jugadores", pct / 100, pct % 100);
+        snprintf(b, sizeof(b), T("Mejor que el %d,%02d%% de los jugadores"), pct / 100, pct % 100);
         text_draw(SCR_W / 2, 98, FONT_S, b, RGBA(200, 90, 30, 255), 1);
     }
     progress_bar(140, 124, 150);
     static const char *L[] = {"SIGUIENTE", "REPETIR", "INICIO"};
-    for (int i = 0; i < 3; i++) draw_button(130 + i * 75, 186, 70, 30, L[i], sel == i, 1);
-    help(BTN_X " Aceptar   Cruceta Elegir");
+    for (int i = 0; i < 3; i++) draw_button(130 + i * 75, 186, 70, 30, T(L[i]), sel == i, 1);
+    help(T(BTN_X " Aceptar   Cruceta Elegir"));
 }
 
 static void win_input(unsigned in)
@@ -281,18 +282,18 @@ static void lose_draw(void)
     draw_panel(110, 50, 260, 180);
     int ban = WSPR(UI_BANNER_LOSE);
     if (ban >= 0) gfx_sprite_rect(&world, ban, 140, 28, 200, 50, WHITE);
-    text_draw(SCR_W / 2, 40, FONT_L, "OH, NO!", WHITE, 1);
+    text_draw(SCR_W / 2, 40, FONT_L, T("OH, NO!"), WHITE, 1);
     gfx_sprite_fit(&world, WSPR(UI_ICON_LOSE), SCR_W / 2, 112, 110, 60, WHITE);
     static const char *L[] = {"REINTENTAR", "PISTA", "SALTAR", "INICIO"};
     for (int i = 0; i < 4; i++) {
         char b[32];
-        if (i == 1) snprintf(b, sizeof(b), "PISTA (%d)", sv.hints);
-        else if (i == 2) snprintf(b, sizeof(b), "SALTAR (%d)", sv.skips);
-        else snprintf(b, sizeof(b), "%s", L[i]);
+        if (i == 1) snprintf(b, sizeof(b), T("PISTA (%d)"), sv.hints);
+        else if (i == 2) snprintf(b, sizeof(b), T("SALTAR (%d)"), sv.skips);
+        else snprintf(b, sizeof(b), "%s", T(L[i]));
         draw_button(125 + (i % 2) * 118, 150 + (i / 2) * 36, 112, 30, b, sel == i,
                     i == 1 ? sv.hints > 0 : i == 2 ? sv.skips > 0 : 1);
     }
-    help(BTN_X " Aceptar   Cruceta Elegir");
+    help(T(BTN_X " Aceptar   Cruceta Elegir"));
 }
 
 static void lose_input(unsigned in)
@@ -347,18 +348,18 @@ static int item_need(int type, int id, const char **why)
     for (int i = 0; i < meta.nprog; i++)
         if (meta.prog[i].type == type && meta.prog[i].id == id) {
             static char b[48];
-            snprintf(b, sizeof(b), "Supera %d niveles", meta.prog[i].end);
+            snprintf(b, sizeof(b), T("Supera %d niveles"), meta.prog[i].end);
             *why = b;
             return -1;
         }
     if (d && d->state == 6) {
-        *why = d->event == 1 ? "Evento de Halloween" : d->event == 2 ? "Evento de Navidad" : "Evento especial";
+        *why = T(d->event == 1 ? "Evento de Halloween" : d->event == 2 ? "Evento de Navidad" : "Evento especial");
         return -1;
     }
     *why = NULL;
     if (!d) return 5;
     if (d->state == 4) {
-        *why = "Diario o fichas";
+        *why = T("Diario o fichas");
         return d->need ? d->need : 3;
     }
     return d->need ? d->need : 1;
@@ -407,10 +408,10 @@ static void pack_text(int k, char *b, int n)
     for (int j = 0; j < meta.pack[k].n; j++) {
         int t = meta.pack[k].type[j], q = meta.pack[k].qty[j];
         char p[32] = "";
-        if (t == RW_HINT) snprintf(p, sizeof(p), "%d pistas", q);
-        else if (t == RW_SKIP) snprintf(p, sizeof(p), "%d saltos", q);
-        else if (t == RW_SKIN && q < nskins) snprintf(p, sizeof(p), "aspecto");
-        else if (t == RW_BG && q < nbgs) snprintf(p, sizeof(p), "fondo");
+        if (t == RW_HINT) snprintf(p, sizeof(p), T("%d pistas"), q);
+        else if (t == RW_SKIP) snprintf(p, sizeof(p), T("%d saltos"), q);
+        else if (t == RW_SKIN && q < nskins) snprintf(p, sizeof(p), "%s", T("aspecto"));
+        else if (t == RW_BG && q < nbgs) snprintf(p, sizeof(p), "%s", T("fondo"));
         if (!p[0]) continue;
         if (b[0]) strncat(b, " + ", n - strlen(b) - 1);
         strncat(b, p, n - strlen(b) - 1);
@@ -433,10 +434,10 @@ static void packs_draw(void)
         if (icon >= 0) gfx_sprite_fit(&world, icon, 36, y + 11, 20, 20, WHITE);
         else gfx_sprite_fit(&shop_sheet, meta.skin_icon[(-2 - icon) & 31], 36, y + 11, 22, 22, WHITE);
         text_draw(54, y + 3, FONT_M, b, WHITE, 0);
-        snprintf(b, sizeof(b), "%d fichas", pack_price(k));
+        snprintf(b, sizeof(b), T("%d fichas"), pack_price(k));
         text_draw(450, y + 3, FONT_M, b, sv.tokens >= pack_price(k) ? RGBA(150, 255, 150, 255) : RGBA(255, 150, 150, 255), 2);
     }
-    if (!pack_count) text_draw(SCR_W / 2, 120, FONT_M, "No hay paquetes", WHITE, 1);
+    if (!pack_count) text_draw(SCR_W / 2, 120, FONT_M, T("No hay paquetes"), WHITE, 1);
 }
 
 static void packs_buy(void)
@@ -446,7 +447,7 @@ static void packs_buy(void)
     int k = pack_list[sel], price = pack_price(k);
     if (sv.tokens < price) {
         play_sfx(SFX_STOP);
-        ui_message("Faltan fichas: ganas 1 por cada nivel nuevo superado", 2.5f);
+        ui_message(T("Faltan fichas: ganas 1 por cada nivel nuevo superado"), 2.5f);
         return;
     }
     sv.tokens -= price;
@@ -460,7 +461,7 @@ static void packs_buy(void)
     play_sfx(SFX_REWARD);
     char b[96], m[120];
     pack_text(k, b, sizeof(b));
-    snprintf(m, sizeof(m), "Comprado: %s", b);
+    snprintf(m, sizeof(m), T("Comprado: %s"), b);
     ui_message(m, 2.0f);
     dlog("TIENDA paquete %d por %d fichas", meta.pack[k].id, price);
     game_save();
@@ -479,14 +480,14 @@ static void shop_draw(void)
     shop_build();
     if (sel >= shop_count) sel = shop_count - 1;
     if (sel < 0) sel = 0;
-    text_draw(120, 4, FONT_L, "TIENDA", WHITE, 1);
-    draw_button(196, 4, 90, 26, "ASPECTOS", shop_tab == 0, 1);
-    draw_button(290, 4, 90, 26, "FONDOS", shop_tab == 1, 1);
+    text_draw(120, 4, FONT_L, T("TIENDA"), WHITE, 1);
+    draw_button(196, 4, 90, 26, T("ASPECTOS"), shop_tab == 0, 1);
+    draw_button(290, 4, 90, 26, T("FONDOS"), shop_tab == 1, 1);
     draw_button(384, 4, 90, 26, "PACKS", shop_tab == 2, 1);
     if (shop_tab == 2) {
         packs_draw();
         counters(SCR_H - 40);
-        help(BTN_X " Comprar con fichas   " BTN_O " Volver   L/R Pestana");
+        help(T(BTN_X " Comprar con fichas   " BTN_O " Volver   L/R Pestana"));
         return;
     }
     /* vista previa */
@@ -502,10 +503,10 @@ static void shop_draw(void)
     int equipped = shop_tab ? sv.bg == id : sv.skin == id;
     const char *why = NULL;
     int need = owned ? 0 : item_need(shop_tab, id, &why);
-    if (equipped) snprintf(b, sizeof(b), "EQUIPADO");
-    else if (owned) snprintf(b, sizeof(b), BTN_X " Equipar");
-    else if (need > 0) snprintf(b, sizeof(b), BTN_X " Pagar ficha (%d/%d)", shop_tab ? sv.bg_paid[id] : sv.skin_paid[id], need);
-    else snprintf(b, sizeof(b), "Bloqueado");
+    if (equipped) snprintf(b, sizeof(b), "%s", T("EQUIPADO"));
+    else if (owned) snprintf(b, sizeof(b), "%s", T(BTN_X " Equipar"));
+    else if (need > 0) snprintf(b, sizeof(b), T(BTN_X " Pagar ficha (%d/%d)"), shop_tab ? sv.bg_paid[id] : sv.skin_paid[id], need);
+    else snprintf(b, sizeof(b), "%s", T("Bloqueado"));
     text_draw(108, 182, FONT_M, b, TXT_DARK, 1);
     if (!owned && why) text_draw(108, 206, FONT_S, why, RGBA(200, 90, 30, 255), 1);
     /* cuadricula */
@@ -523,7 +524,7 @@ static void shop_draw(void)
         if ((shop_tab ? sv.bg : sv.skin) == i) gfx_sprite_fit(&world, WSPR(UI_ICON_TICK), x + 14, y + 14, 18, 18, WHITE);
     }
     counters(SCR_H - 40);
-    help(BTN_X " Elegir/pagar   " BTN_O " Volver   L/R Pestana");
+    help(T(BTN_X " Elegir/pagar   " BTN_O " Volver   L/R Pestana"));
 }
 
 static void shop_input(unsigned in)
@@ -557,8 +558,8 @@ static void shop_input(unsigned in)
     }
     const char *why;
     int need = item_need(shop_tab, id, &why);
-    if (need <= 0) { play_sfx(SFX_STOP); ui_message(why ? why : "Bloqueado", 1.5f); return; }
-    if (!sv.tokens) { play_sfx(SFX_STOP); ui_message("Sin fichas: gana 1 ficha por cada nivel nuevo superado", 2.5f); return; }
+    if (need <= 0) { play_sfx(SFX_STOP); ui_message(why ? why : T("Bloqueado"), 1.5f); return; }
+    if (!sv.tokens) { play_sfx(SFX_STOP); ui_message(T("Sin fichas: gana 1 ficha por cada nivel nuevo superado"), 2.5f); return; }
     sv.tokens--;
     uint8_t *paid = shop_tab ? &sv.bg_paid[id] : &sv.skin_paid[id];
     (*paid)++;
@@ -577,7 +578,7 @@ static void daily_draw(void)
 {
     gfx_bg(&bg_tex, WHITE);
     gfx_fill(0, 0, SCR_W, SCR_H, RGBA(0, 0, 0, 80));
-    text_draw(SCR_W / 2, 8, FONT_L, "RECOMPENSA DIARIA", WHITE, 1);
+    text_draw(SCR_W / 2, 8, FONT_L, T("RECOMPENSA DIARIA"), WHITE, 1);
     int ready = daily_ready();
     int day = sv.daily_day % (meta.ndaily ? meta.ndaily : 7);
     for (int i = 0; i < meta.ndaily; i++) {
@@ -590,7 +591,7 @@ static void daily_draw(void)
         if (base >= 0) gfx_sprite_rect(&world, base, x - w * s / 2, y - h * s / 2, w * s, h * s, WHITE);
         else gfx_fill(x - w / 2, y - h / 2, w, h, claimed ? RGBA(80, 80, 80, 255) : RGBA(220, 160, 40, 255));
         char b[32];
-        snprintf(b, sizeof(b), "Dia %d", i + 1);
+        snprintf(b, sizeof(b), T("Dia %d"), i + 1);
         text_draw(x, y - h / 2 + 4, FONT_S, b, WHITE, 1);
         const DailyDef *d = &meta.daily[i];
         if (d->kind == 1) {
@@ -603,7 +604,7 @@ static void daily_draw(void)
         }
         if (claimed) gfx_sprite_fit(&world, WSPR(UI_ICON_TICK), x + w / 2 - 12, y + h / 2 - 12, 24, 24, WHITE);
     }
-    help(ready ? BTN_X " Cobrar   " BTN_O " Volver" : "Vuelve manana a por mas   " BTN_O " Volver");
+    help(T(ready ? BTN_X " Cobrar   " BTN_O " Volver" : "Vuelve manana a por mas   " BTN_O " Volver"));
 }
 
 static void daily_input(unsigned in)
@@ -624,7 +625,7 @@ static void daily_input(unsigned in)
         sv.hints += d->qty;
         play_sfx(SFX_REWARD);
         char b[48];
-        snprintf(b, sizeof(b), "+%d pista%s", d->qty, d->qty > 1 ? "s" : "");
+        snprintf(b, sizeof(b), T(d->qty > 1 ? "+%d pistas" : "+%d pista"), d->qty);
         ui_message(b, 1.5f);
     }
     dlog("DIARIO dia %d cobrado", day + 1);
@@ -637,18 +638,18 @@ static void settings_draw(void)
     gfx_bg(&bg_tex, WHITE);
     gfx_fill(0, 0, SCR_W, SCR_H, RGBA(0, 0, 0, 90));
     draw_panel(110, 20, 260, 230);
-    text_draw(SCR_W / 2, 30, FONT_L, "AJUSTES", TXT_DARK, 1);
+    text_draw(SCR_W / 2, 30, FONT_L, T("AJUSTES"), TXT_DARK, 1);
     char b[64];
-    snprintf(b, sizeof(b), "SONIDO: %s", sv.sound ? "SI" : "NO");
+    snprintf(b, sizeof(b), T("SONIDO: %s"), T(sv.sound ? "SI" : "NO"));
     draw_button(150, 70, 180, 32, b, sel == 0, 1);
-    snprintf(b, sizeof(b), "MUSICA: %s", sv.music ? "SI" : "NO");
+    snprintf(b, sizeof(b), T("MUSICA: %s"), T(sv.music ? "SI" : "NO"));
     draw_button(150, 110, 180, 32, b, sel == 1, 1);
-    draw_button(150, 150, 180, 32, confirm_reset ? "PULSA OTRA VEZ" : "BORRAR PARTIDA", sel == 2, 1);
+    draw_button(150, 150, 180, 32, T(confirm_reset ? "PULSA OTRA VEZ" : "BORRAR PARTIDA"), sel == 2, 1);
     unsigned m = sv.play_seconds / 60;
-    snprintf(b, sizeof(b), "%d niveles superados | %uh %02um jugadas", levels_won_count(), m / 60, m % 60);
+    snprintf(b, sizeof(b), T("%d niveles superados | %uh %02um jugadas"), levels_won_count(), m / 60, m % 60);
     text_draw(SCR_W / 2, 196, FONT_S, b, TXT_DARK, 1);
-    text_draw(SCR_W / 2, 214, FONT_S, "Snake Puzzle 2.3.4 - port para PSP", TXT_DARK, 1);
-    help(BTN_X " Cambiar   " BTN_O " Volver");
+    text_draw(SCR_W / 2, 214, FONT_S, T("Snake Puzzle 2.3.4 - port para PSP"), TXT_DARK, 1);
+    help(T(BTN_X " Cambiar   " BTN_O " Volver"));
 }
 
 extern void save_defaults(void);
@@ -669,7 +670,7 @@ static void settings_input(unsigned in)
             load_skin(0);
             load_bg(0);
             confirm_reset = 0;
-            ui_message("Partida borrada", 1.5f);
+            ui_message(T("Partida borrada"), 1.5f);
             dlog("AJUSTES partida borrada");
         }
     }
@@ -689,11 +690,11 @@ static void reward_draw(void)
     }
     int ban = WSPR(type ? UI_NEWBGUNLOCKED : UI_NEWSKINUNLOCKED);
     if (ban >= 0) gfx_sprite_fit(&world, ban, SCR_W / 2, 36, 200, 50, WHITE);
-    text_draw(SCR_W / 2, 64, FONT_L, type ? "FONDO NUEVO!" : "ASPECTO NUEVO!", WHITE, 1);
+    text_draw(SCR_W / 2, 64, FONT_L, T(type ? "FONDO NUEVO!" : "ASPECTO NUEVO!"), WHITE, 1);
     int icon = type ? meta.bg_icon[id & 31] : meta.skin_icon[id & 31];
     float s = 1.0f + 0.06f * sinf(gtime * 5);
     if (icon >= 0) gfx_sprite_fit(&shop_sheet, icon, SCR_W / 2, 150, 140 * s, 120 * s, WHITE);
-    help(BTN_X " Usar ahora   " BTN_O " Seguir");
+    help(T(BTN_X " Usar ahora   " BTN_O " Seguir"));
 }
 
 static void reward_input(unsigned in)

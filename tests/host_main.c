@@ -10,6 +10,7 @@
 #include "../src/game.h"
 #include "../src/audio.h"
 #include "../src/devlog.h"
+#include "../src/lang.h"
 
 /* lo que en la PSP pone devlog.c */
 MemInfo dbg_mem;
@@ -79,6 +80,7 @@ int main(int argc, char **argv)
 {
     if (argc > 1 && chdir(argv[1])) { perror("chdir"); return 1; }   /* carpeta con data/ y out/ */
     remove("save.dat");
+    lang_init(getenv("HOST_LANG") ? atoi(getenv("HOST_LANG")) : 3);
     gfx_init();
     game_init();
     shot("inicio");

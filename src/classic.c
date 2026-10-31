@@ -11,6 +11,7 @@
 #include <string.h>
 #include <math.h>
 #include "game.h"
+#include "lang.h"
 #include "audio.h"
 #include "devlog.h"
 #include "ui_ids.h"
@@ -65,7 +66,8 @@ void classic_start(void)
     rng ^= plat_ms() * 2654435761u;
     n = 3;
     dir = next_dir = D_RIGHT;
-    for (int i = 0; i < n; i++) body[i] = (Cell){(int8_t)(5 - i), CH / 2};
+    /* prefab del modo clasico: la cabeza en (-2,67; 1,67) -> casilla (-3, 1), que desde p0 (-7,-6) es (4, 7) */
+    for (int i = 0; i < n; i++) body[i] = (Cell){(int8_t)(4 - i), 7};
     memset(rev, 0, sizeof(rev));
     last_in = D_RIGHT;
     memcpy(prev_body, body, sizeof(body));
@@ -74,7 +76,7 @@ void classic_start(void)
     alive = 1;
     started = 0;
     step_t = 0;
-    step_len = 0.2f;
+    step_len = 0.2f;   /* SnakeController.headMoveDuration del prefab clasico: velocidad fija, no acelera */
     time_s = 0;
     dead_t = 0;
     new_apple();
@@ -158,7 +160,6 @@ void classic_update(float dt)
         score++;
         play_sfx(SFX_EAT);
         new_apple();
-        if (step_len > 0.09f) step_len *= 0.98f;   /* cada manzana un poco mas rapido */
     } else
         play_sfx(SFX_WORM);
 }
@@ -205,29 +206,29 @@ void classic_draw(void)
     draw_snake_screen(&st, xs, ys, cs);
     char b[64];
     gfx_fill(0, 0, SCR_W, 24, RGBA(0, 0, 0, 110));
-    snprintf(b, sizeof(b), "PUNTOS %d", score);
+    snprintf(b, sizeof(b), T("PUNTOS %d"), score);
     text_draw(10, 3, FONT_M, b, WHITE, 0);
     snprintf(b, sizeof(b), "%d:%02d", (int)time_s / 60, (int)time_s % 60);
     text_draw(SCR_W / 2, 3, FONT_M, b, WHITE, 1);
-    snprintf(b, sizeof(b), "RECORD %d", sv.classic_best);
+    snprintf(b, sizeof(b), T("RECORD %d"), sv.classic_best);
     text_draw(SCR_W - 10, 3, FONT_M, b, WHITE, 2);
     if (!started && alive && gstate == GS_CLASSIC)
-        text_draw(SCR_W / 2, 120, FONT_L, "Pulsa la cruceta para empezar", WHITE, 1);
-    if (gstate == GS_CLASSIC) text_draw(SCR_W / 2, SCR_H - 16, FONT_S, "Cruceta Girar   START Pausa   " BTN_O " Salir", RGBA(255, 255, 255, 200), 1);
+        text_draw(SCR_W / 2, 120, FONT_L, T("Pulsa la cruceta para empezar"), WHITE, 1);
+    if (gstate == GS_CLASSIC) text_draw(SCR_W / 2, SCR_H - 16, FONT_S, T("Cruceta Girar   START Pausa   " BTN_O " Salir"), RGBA(255, 255, 255, 200), 1);
 }
 
 void classic_end_draw(void)
 {
     gfx_fill(0, 0, SCR_W, SCR_H, RGBA(0, 0, 0, 140));
     draw_panel(90, 10, 300, 250);
-    text_draw(SCR_W / 2, 18, FONT_L, rank_pos == 0 ? "NUEVO PRIMER PUESTO!" : "RANKING", RGBA(105, 58, 28, 255), 1);
+    text_draw(SCR_W / 2, 18, FONT_L, T(rank_pos == 0 ? "NUEVO PRIMER PUESTO!" : "RANKING"), RGBA(105, 58, 28, 255), 1);
     char b[64];
     int row = 0;
     for (int i = 0; i <= 10 && row < 11; i++) {
         int is_me = i == rank_pos;
         int bi = i - (i > rank_pos ? 1 : 0);
         if (!is_me && bi >= 10) break;
-        const char *nm = is_me ? "TU" : (bi < meta.nnames ? meta.names[bi] : "Rival");
+        const char *nm = is_me ? T("TU") : (bi < meta.nnames ? meta.names[bi] : "Rival");
         int sc = is_me ? score : board[bi];
         snprintf(b, sizeof(b), "%2d. %-10s %4d", i + 1, nm, sc);
         float y = 46 + row * 17;
@@ -236,10 +237,10 @@ void classic_end_draw(void)
         row++;
     }
     if (rank_reward) {
-        snprintf(b, sizeof(b), "Premio: +%d pista%s", rank_reward, rank_reward > 1 ? "s" : "");
+        snprintf(b, sizeof(b), T(rank_reward > 1 ? "Premio: +%d pistas" : "Premio: +%d pista"), rank_reward);
         text_draw(SCR_W / 2, 238, FONT_M, b, RGBA(200, 90, 30, 255), 1);
     }
-    text_draw(SCR_W / 2, SCR_H - 16, FONT_S, BTN_X " Otra vez   " BTN_O " Inicio", WHITE, 1);
+    text_draw(SCR_W / 2, SCR_H - 16, FONT_S, T(BTN_X " Otra vez   " BTN_O " Inicio"), WHITE, 1);
 }
 
 void classic_end_input(unsigned in)

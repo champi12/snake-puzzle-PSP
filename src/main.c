@@ -1,5 +1,6 @@
 /* main.c - Snake Puzzle para PSP: arranque, bucle principal, botones y medidor de rendimiento (SELECT) */
 #include <pspkernel.h>
+#include <psputility.h>
 #include <pspctrl.h>
 #include <psppower.h>
 #include <pspdisplay.h>
@@ -14,6 +15,7 @@
 #include "game.h"
 #include "audio.h"
 #include "devlog.h"
+#include "lang.h"
 #include "fpu.h"
 
 PSP_MODULE_INFO("SnakePuzzle", 0, 1, 0);
@@ -207,6 +209,13 @@ int main(int argc, char **argv)
     unsigned tl = sceKernelGetSystemTimeLow();
     (void)tl;
     (void)fcr31;
+    {
+        /* idioma de la consola: espanol o, si es otro, ingles (como el original) */
+        int l = 1;
+        if (sceUtilityGetSystemParamInt(PSP_SYSTEMPARAM_ID_INT_LANGUAGE, &l) < 0) l = 1;
+        lang_init(l);
+        dlog("Idioma de la consola %d -> textos en %s", l, lang_en ? "ingles" : "espanol");
+    }
     gfx_init();
     dlog("GE iniciado: VRAM pantallas %u KB (16 bits, doble buffer, sin Z), %u KB libres para texturas",
          (unsigned)gstat.vram_fb / 1024, (unsigned)(2048 - gstat.vram_fb / 1024));
