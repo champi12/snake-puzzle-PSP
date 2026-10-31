@@ -325,6 +325,8 @@ static void face_update(float dt)
     face_t += dt;
 }
 
+static int preview_face;   /* vista previa (tienda e inicio): cara en reposo, no la de la partida */
+
 static int head_frame(const GState *s)
 {
     static const int blink_seq[] = {SK_IDLE, SK_BLINK, SK_BLINK + 1, SK_BLINK + 2, SK_BLINK + 2, SK_BLINK + 1,
@@ -332,6 +334,14 @@ static int head_frame(const GState *s)
     static const int eat_seq[] = {SK_ITE + 4, SK_EAT, SK_EAT + 1, SK_EAT + 1, SK_EAT + 2, SK_EAT + 3, SK_EAT + 3,
                                   SK_EAT + 4, SK_EAT + 4, SK_EAT + 5, SK_EAT + 6, SK_EAT + 7, SK_EAT + 8, SK_EAT + 9,
                                   SK_IDLE};
+    if (preview_face) {
+        float b = fmodf(gtime, 3.2f);
+        if (b > 2.9f) {
+            int k = (int)((b - 2.9f) / 0.3f * 9);
+            return blink_seq[k > 8 ? 8 : k];
+        }
+        return SK_IDLE;
+    }
     if (s->dead) return SK_DIE;
     if (eat_t > 0) {
         int f = (int)((0.5f - eat_t) * 30);
@@ -702,7 +712,9 @@ void draw_snake_preview(float x, float y, float c, int len)
     G.h = 1;
     ox = x - len * c * 0.5f;
     oy = y - c * 0.5f;
+    preview_face = 1;
     for (int i = len - 1; i >= 0; i--) draw_part(i, &s, sx(s.s[i].x), sy(0), WHITE, 1.0f);
+    preview_face = 0;
     cs = save_cs;
     ox = save_ox;
     oy = save_oy;
