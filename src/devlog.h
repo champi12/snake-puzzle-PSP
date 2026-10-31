@@ -5,7 +5,7 @@
  *   - cada 5 s: FPS, ms de CPU y de GPU, vertices, memoria, VRAM, buffers del GE, bateria
  *   - eventos: cambios de estado, muertes, texturas cargadas en plena partida, tirones, avisos y errores
  * Escribe un hilo de baja prioridad cada 5 s (o al momento si hay un error) para no provocar tirones.
- * Viene desactivado (version publica); "make DEVLOG=1" lo activa para las versiones de prueba.
+ * Viene activado (como en Subway Surfers); "make DEVLOG=0" lo quita para la version publica.
  */
 #ifndef DEVLOG_H
 #define DEVLOG_H
@@ -44,8 +44,9 @@ extern DbgGame dbg_game;
 extern int dbg_loads_frame;     /* lecturas de la Memory Stick en este fotograma */
 const char *dbg_state_name(int s);
 
+/* activado por defecto, como en Subway Surfers: la version publica se compila con DEVLOG=0 */
 #ifndef DEVLOG
-#define DEVLOG 0
+#define DEVLOG 1
 #endif
 
 /* fase en la que esta cada hilo y contador de vueltas, para el vigilante (watchdog): si el bucle principal deja

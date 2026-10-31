@@ -1,10 +1,10 @@
 #!/bin/bash
 # Arma dist/PSP/GAME/SNAKEPZL con el EBOOT y (si existe) la carpeta data/ generada con tools/extract.py
-#   ./build_dist.sh            version publica (sin devlog)
-#   DEVLOG=1 ./build_dist.sh   version de pruebas: devlog.txt, vigilante de bloqueos y capturador de cuelgues (crash.txt)
+#   ./build_dist.sh            version de pruebas: devlog.txt, vigilante de bloqueos y capturador de cuelgues (crash.txt)
+#   DEVLOG=0 ./build_dist.sh   version publica (sin devlog)
 set -e
 cd "$(dirname "$0")"
-DEVLOG=${DEVLOG:-0}
+DEVLOG=${DEVLOG:-1}
 # siempre desde cero: un .o viejo con otra version de una cabecera da fallos muy raros
 make clean > /dev/null
 make -C exhandler clean > /dev/null 2>&1 || true

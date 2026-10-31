@@ -6,9 +6,9 @@ OBJS = src/main.o src/gfx.o src/gfx_psp.o src/level.o src/logic.o src/game.o src
 INCDIR = src
 CFLAGS = -O2 -G0 -g -Wall -ffast-math -fno-strict-aliasing -MMD -MP
 CFLAGS += $(EXTRA)
-ifdef DEVLOG
+# devlog activado salvo DEVLOG=0 (version publica)
+DEVLOG ?= 1
 CFLAGS += -DDEVLOG=$(DEVLOG)
-endif
 ASFLAGS = $(CFLAGS)
 LIBS = -lpspgu -lpspmp3 -lpspaudio -lpsputility -lpsppower -lpsprtc -lm
 

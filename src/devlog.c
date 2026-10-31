@@ -124,6 +124,20 @@ static int writer_thread(SceSize a, void *p)
         if (b < 0) continue;
         /* abrir, escribir y cerrar: si el juego se cuelga, lo escrito ya esta en la tarjeta */
         SceUID fd = sceIoOpen(path, PSP_O_WRONLY | PSP_O_CREAT | PSP_O_APPEND, 0777);
+        if (fd < 0) {
+            /* no se puede escribir donde esta el juego (carpeta de solo lectura en el emulador, ISO...):
+             * se prueba en la carpeta del juego de la Memory Stick y, si no, en la raiz */
+            static const char *alt[] = {"ms0:/PSP/GAME/SNAKEPZL/devlog.txt", "ms0:/devlog_snakepuzzle.txt"};
+            for (int k = 0; k < 2 && fd < 0; k++) {
+                if (!k) {
+                    sceIoMkdir("ms0:/PSP", 0777);
+                    sceIoMkdir("ms0:/PSP/GAME", 0777);
+                    sceIoMkdir("ms0:/PSP/GAME/SNAKEPZL", 0777);
+                }
+                fd = sceIoOpen(alt[k], PSP_O_WRONLY | PSP_O_CREAT | PSP_O_APPEND, 0777);
+                if (fd >= 0) snprintf(path, sizeof(path), "%s", alt[k]);
+            }
+        }
         if (fd >= 0) { write_ok = sceIoWrite(fd, bufs[b], blen[b]) > 0; sceIoClose(fd); }
         else write_ok = 0;
         blen[b] = 0;
