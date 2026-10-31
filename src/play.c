@@ -361,10 +361,48 @@ static int head_frame(const GState *s)
 /* giro de Unity (eulerAngles.z, grados a la izquierda) -> giros de 90 de gfx_sprite */
 static int rot_of_z(int z) { return z == 90 ? 1 : z == -90 ? 3 : z == 180 ? 2 : 0; }
 
+/* gusanos de Apple Worm: sus piezas son una cinta con borde y sombra a un lado del camino (esquinas interior y
+ * exterior), asi que se giran siguiendo el recorrido en vez de reflejarse como las de Snake Puzzle */
+static int rot_dir(int d) { return d == D_RIGHT ? 0 : d == D_UP ? 1 : d == D_LEFT ? 2 : 3; }
+
+static void draw_part_aw(int i, const GState *s, float px, float py, uint32_t col, float sc)
+{
+    int n = s->n, dark = i > 0 && !(i & 1);
+    if (i == 0) {
+        int d = s->dir, fr = head_frame(s);
+        if (d == D_LEFT) gfx_sprite(&skin_sheet, skin_id(fr), px, py, sc, 0, FLIP_X, col);
+        else gfx_sprite(&skin_sheet, skin_id(fr), px, py, sc, rot_dir(d), 0, col);
+        return;
+    }
+    int out = dir_between(s->s[i], s->s[i - 1]);                    /* sentido de avance hacia la cabeza */
+    int back = i + 1 < n ? dir_between(s->s[i], s->s[i + 1]) : -1;
+    if (out < 0 && back >= 0) out = dir_opposite(back);
+    if (out < 0) out = D_RIGHT;
+    if (i == n - 1) {
+        gfx_sprite(&skin_sheet, skin_id(dark ? SK_T2 : SK_T1), px, py, sc, rot_dir(out), 0, col);
+        return;
+    }
+    if (back < 0) back = dir_opposite(out);
+    int in = dir_opposite(back);
+    if (in == out) {
+        gfx_sprite(&skin_sheet, skin_id(dark ? SK_H2 : SK_H1), px, py, sc, rot_dir(out), 0, col);
+        return;
+    }
+    /* giro a la derecha (sentido horario): esquina interior; a la izquierda: exterior. Las dos estan dibujadas
+     * entrando hacia arriba */
+    int right = (rot_dir(in) + 3) % 4 == rot_dir(out);
+    int id = right ? (dark ? SK_C2 : SK_C1) : (dark ? SK_O2 : SK_O1);
+    gfx_sprite(&skin_sheet, skin_id(id), px, py, sc, (rot_dir(in) + 3) % 4, 0, col);
+}
+
 static void draw_part(int i, const GState *s, float px, float py, uint32_t col, float size)
 {
     int n = s->n;
     float sc = cs * size;
+    if (skin_aw) {
+        draw_part_aw(i, s, px, py, col, sc);
+        return;
+    }
     int dark = i > 0 && !(i & 1);
     int H = dark ? SK_H2 : SK_H1, V = dark ? SK_V2 : SK_V1, IN_L = dark ? SK_C2 : SK_C1, OUT_R = dark ? SK_O2 : SK_O1,
         T = dark ? SK_T2 : SK_T1;

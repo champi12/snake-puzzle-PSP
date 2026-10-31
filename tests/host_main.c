@@ -207,6 +207,23 @@ int main(int argc, char **argv)
         shot("tienda_aw_skins");
         sv.skin = AW_SKIN0 + 1;
         load_skin(sv.skin);
+        ui_open_shop();
+        for (int k = 0; k < 6; k++) frames(2, IN_DOWN);
+        frames(2, IN_RIGHT);
+        shot("tienda_aw_equipado");
+        /* nivel 3 de Snake Puzzle: comer y girar en todas direcciones con un gusano de Apple Worm */
+        for (int k = 1; k <= 12; k += 4) {
+            aw_mode = 0;
+            for (int i = 0; i < levels.count; i++) {
+                Level L;
+                level_get(&levels, i, &L);
+                if (L.num == 3) { play_solution(i, k); break; }
+            }
+            frames(30, 0);
+            char b2[32];
+            snprintf(b2, sizeof(b2), "aw_skin_giros%02d", k);
+            shot(b2);
+        }
         aw_mode = 1;
         play_start(2, 0);
         frames(40, 0);

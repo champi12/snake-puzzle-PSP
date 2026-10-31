@@ -328,18 +328,19 @@ def export_worm_skins(get, skins, out, apple_img):
             return im
         h1, h2 = piece('line_light_appear'), piece('line_dark_appear')
         c1, c2 = piece('corner_inner_light_to_dark'), piece('corner_inner_dark_to_light')
-        o1 = piece('corner_outer_light_to_dark').transpose(Image.FLIP_TOP_BOTTOM)
-        o2 = piece('corner_outer_dark_to_light').transpose(Image.FLIP_TOP_BOTTOM)
+        # esquina interior (giro a la derecha: entra hacia arriba y sale a la derecha) y exterior (giro a la
+        # izquierda: entra hacia arriba y sale a la izquierda); en el juego se giran siguiendo el camino
+        o1 = piece('corner_outer_light_to_dark')
+        o2 = piece('corner_outer_dark_to_light')
         t1, t2 = piece('tail_light_to_dark'), piece('tail_dark_to_light')
         sh = ex.SpriteSheet(ex.FMT_T8, 512, 256)
         for im in (h1, h1.rotate(90), c1, t1, h2, h2.rotate(90), c2, t2, o1, o2):
             sh.add_image(im, -0.5, -0.5, 1.0, 1.0)
-        # cabeza: la cara en una casilla (la caja de la pose 'static'), a 40 px por casilla como en Snake Puzzle
-        _, fb = sr.render(fsk, freg, 'static', None, px=64)
-        cx, cy = (fb[0] + fb[2]) / 2, (fb[1] + fb[3]) / 2
-        half = max(fb[2] - fb[0], fb[3] - fb[1]) / 2
-        hbox = (cx - half, cy - half, cx + half, cy + half)
-        hu = 2 * half / 256.0                 # tamano de la cara en casillas
+        # cabeza: la cara centrada en su origen (el centro de la casilla de la cabeza), con margen para orejas y
+        # pelo; el cuadrado de la cabeza es el de head_dark_static del gusano
+        hbox = (-192, -192, 192, 192)
+        hu = 384 / 256.0                      # tamano de la imagen de la cabeza en casillas
+        head_sq, _ = sr.render(wsk, wreg, 'head_dark_static', None, box=hbox, px=round(40 * hu))
 
         def face(anim, frac):
             dur = 0
@@ -349,8 +350,10 @@ def export_worm_skins(get, skins, out, apple_img):
             for tls in fsk['animations'].get(anim, {}).get('bones', {}).values():
                 for tl in tls.values():
                     dur = max([dur] + [x.get('time', 0) for x in tl])
-            im, _ = sr.render(fsk, freg, anim, dur * frac, box=hbox, px=40 * hu)
-            return im
+            im, _ = sr.render(fsk, freg, anim, dur * frac, box=hbox, px=round(40 * hu))
+            base = head_sq.copy()
+            base.alpha_composite(im)
+            return base
         frames = ([face('static', 0)] * 3 + [face('idle_1', f / 4) for f in range(5)] +
                   [face('eating', f / 9) for f in range(10)] + [face('near_apple_start', f / 4) for f in range(5)] +
                   [face('near_wall_start', f / 3) for f in range(4)] + [face('dead', 1)])

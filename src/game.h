@@ -88,6 +88,7 @@ extern LevelPack levels;
 extern int nskins, nbgs;
 extern int nskins_aw;               /* skins de Apple Worm (data/aw/skinNN.spr): ids AW_SKIN0 + n */
 #define AW_SKIN0 100
+extern int skin_aw;                 /* el aspecto cargado es un gusano de Apple Worm */
 #define WSPR(i) ((i) < nwidx ? widx[i] : -1)
 
 /* juego */

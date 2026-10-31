@@ -19,7 +19,7 @@ int16_t widx[160];
 int nwidx;
 Tex bg_tex, home_tex;
 LevelPack levels;
-int nskins, nbgs, nskins_aw;
+int nskins, nbgs, nskins_aw, skin_aw;
 int gstate = GS_LOADING;
 float gtime;
 static int loaded_skin = -1, loaded_bg = -1;
@@ -168,6 +168,7 @@ void load_skin(int id)
         load_end(p, skin_sheet.bytes);
     vram_bg = gfx_vram_mark();
     loaded_skin = id;
+    skin_aw = id >= AW_SKIN0;
     int b = loaded_bg;
     loaded_bg = -1;
     if (b >= 0) load_bg(b);
