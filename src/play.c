@@ -570,13 +570,15 @@ static int aw_solid(int x, int y) { return x >= 0 && y >= 0 && x < G.w && y < G.
 
 /* Block_<arriba><derecha><abajo><izquierda>f: el relieve de arriba y de la izquierda lo tapa el vecino, asi que se
  * dibuja de abajo arriba y de derecha a izquierda */
-static void aw_draw_tiles(void)
+/* layer 0: relieve 'b' (detras de todo); 1: caras 'f' (delante del gusano, las piedras y los objetos: en el original
+ * el personaje queda un poco por detras del borde del suelo, como en 3D) */
+static void aw_draw_tiles(int layer)
 {
     for (int y = 0; y < G.h; y++)
         for (int x = G.w - 1; x >= 0; x--) {
             if (!aw_solid(x, y)) continue;
             int m = aw_solid(x, y + 1) << 3 | aw_solid(x + 1, y) << 2 | aw_solid(x, y - 1) << 1 | aw_solid(x - 1, y);
-            gfx_sprite(&aw_sheet, aw_spr(AW_BLOCK0 + m), sx(x), sy(y), cs, 0, 0, WHITE);
+            gfx_sprite(&aw_sheet, aw_spr((layer ? AW_BLOCK0 : AW_BLOCKB0) + m), sx(x), sy(y), cs, 0, 0, WHITE);
         }
 }
 
@@ -632,7 +634,7 @@ void play_draw(void)
     float t = animating() ? step_t : 1;
     /* orden de dibujo del original (sortingOrder): Border -10, bordes de piedra -2/-1, suelo 10; los objetos y la
      * serpiente encima del suelo para que no los corte el relieve de las casillas */
-    if (aw_mode) aw_draw_tiles();
+    if (aw_mode) aw_draw_tiles(0);
     else {
         draw_tiles(0);
         draw_stones(to, &shown_from, t, 0);
@@ -652,7 +654,10 @@ void play_draw(void)
         gfx_sprite_angle(&world, WSPR(W_GOAL), sx(G.gx), sy(G.gy), cs * grow, goal_ang + win_t * win_t * 6, WHITE);
     } else
         draw_snake(&shown_from, to, t, 0);
-    if (aw_mode) aw_draw_objects(to, &shown_from, t, 1);   /* pinchos de delante */
+    if (aw_mode) {
+        aw_draw_tiles(1);                     /* caras del suelo por delante del gusano */
+        aw_draw_objects(to, &shown_from, t, 1);   /* pinchos de delante */
+    }
     else draw_stones(to, &shown_from, t, 1);   /* Stone_0 (orden 8) por delante de la serpiente (4) */
     /* portales: parte de delante (tapa la serpiente al entrar) */
     for (int g = 0; g < G.ngate; g++)

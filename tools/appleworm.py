@@ -8,9 +8,10 @@ steps: la solucion oficial con el mismo enum de direcciones que Snake Puzzle (0 
     python3 tools/appleworm.py juego.xapk data/   ->  data/aw/ (niveles, graficos, interfaz y fondo)
 
 Graficos (data/aw/aw.spr + aw.idx, orden fijo de src/aw.h):
-    0..15  bloques de suelo de la skin Original, Block_<arriba><derecha><abajo><izquierda>f (1 = hay vecino)
-    16..22 manzana, sierra, pinchos (delante y detras), piedra, portal (fondo y remolino)
-    23..   interfaz de Apple Worm (seleccion de nivel y de skins) y la vista previa de cada skin
+    0..15  bloques de suelo de la skin Original, Block_<arriba><derecha><abajo><izquierda>f (1 = hay vecino): la cara
+    16..31 los mismos en 'b': el relieve de arriba y de la izquierda, que va detras de todo
+    32..38 manzana, sierra, pinchos (delante y detras), piedra, portal (fondo y remolino)
+    39..   interfaz de Apple Worm (seleccion de nivel y de skins) y la vista previa de cada skin
 """
 import io
 import json
@@ -237,9 +238,11 @@ def export_assets(src, out):
     blocks = {}
     for n, ptr in zip(sa['m_PackedSpriteNamesToIndex'], sa['m_PackedSprites']):
         blocks[n] = resolve(sa_o.assets_file, ptr)
-    for m in range(16):
-        o = blocks.get('Block_%sf' % format(m, '04b'))
-        idx.append(sheet.add_unity(o) if o is not None else -1)
+    # 'f': cara del bloque (delante del gusano); 'b': relieve de arriba y de la izquierda (detras de todo)
+    for layer in ('f', 'b'):
+        for m in range(16):
+            o = blocks.get('Block_%s%s' % (format(m, '04b'), layer))
+            idx.append(sheet.add_unity(o) if o is not None else -1)
     # elementos (atlas de Spine de la skin Original)
     tex = get('packs/original/elements_export/skeleton', 'Texture2D').read().image.convert('RGBA')
     at = get('packs/original/elements_export/skeleton.atlas', 'TextAsset').read().m_Script

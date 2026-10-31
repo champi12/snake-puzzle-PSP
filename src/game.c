@@ -115,12 +115,14 @@ void shop_unlock_check(void)
     int won = levels_won_count();
     for (int i = sv.progress_done; i < meta.nprog; i++) {
         if (won < meta.prog[i].end) break;
-        int id = meta.prog[i].id;
-        if (meta.prog[i].type == 0) sv.skins_owned |= 1u << id;
+        int id = meta.prog[i].id, type = meta.prog[i].type;
+        int had = type ? bg_available(id) : skin_available(id);
+        if (type == 0) sv.skins_owned |= 1u << id;
         else sv.bgs_owned |= 1u << id;
         sv.progress_done = i + 1;
-        reward_popup(meta.prog[i].type, id);
-        dlog("PREMIO por progreso: %s %d", meta.prog[i].type ? "fondo" : "aspecto", id);
+        /* solo se anuncia si de verdad es nuevo (p. ej. un aspecto de evento ya conseguido no se vuelve a anunciar) */
+        if (!had) reward_popup(type, id);
+        dlog("PREMIO por progreso: %s %d%s", type ? "fondo" : "aspecto", id, had ? " (ya lo tenia: sin aviso)" : "");
     }
     /* los articulos de evento ya no se regalan al abrir el juego: durante su evento se consiguen en la tienda con
      * fichas (ui.c, item_need) */

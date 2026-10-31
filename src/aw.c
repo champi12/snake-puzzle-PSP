@@ -17,7 +17,7 @@ int aw_mode;
 LevelPack aw_levels;
 Sheet aw_sheet;
 Tex aw_bg;
-static int16_t aidx[96];
+static int16_t aidx[128];
 static int naidx, loaded = -1;
 
 #define AW_SKINS_MAX 24
@@ -56,7 +56,7 @@ int aw_open(void)
     if (f) {
         uint8_t b[2];
         if (fread(b, 1, 2, f) == 2) naidx = b[0] | b[1] << 8;
-        if (naidx > 96) naidx = 96;
+        if (naidx > 128) naidx = 128;
         for (int i = 0; i < naidx; i++) {
             if (fread(b, 1, 2, f) != 2) break;
             aidx[i] = (int16_t)(b[0] | b[1] << 8);
