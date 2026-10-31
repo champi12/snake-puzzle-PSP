@@ -44,15 +44,20 @@ def rot_deg(m):
     return round(math.degrees(math.atan2(m[3], m[0]))) % 360
 
 
+# origen del Grid del nivel: GridLayout.WorldToCell/CellToWorld cuentan las casillas desde ahi (en algunos niveles
+# esta desplazado media casilla o mas: nivel 18 en y 0,5, nivel 20 en (0,6; 0,65))
+GRID_O = (0.0, 0.0)
+
+
 def cell(x, y):
-    return (int(math.floor(x + 1e-4)), int(math.floor(y + 1e-4)))
+    return (int(math.floor(x - GRID_O[0] + 1e-4)), int(math.floor(y - GRID_O[1] + 1e-4)))
 
 
 def walk(g, parent, out):
     m = mat_mul(parent, local_mat(g['tr']))
     if 'SnapGrid' in g['mb'] or 'SnakeController' in g['mb']:
         cx, cy = cell(m[2], m[5])
-        m = (m[0], m[1], cx + 1 / 3, m[3], m[4], cy + 2 / 3)
+        m = (m[0], m[1], GRID_O[0] + cx + 1 / 3, m[3], m[4], GRID_O[1] + cy + 2 / 3)
     g['m'] = m
     out.append(g)
     for ch in g['children']:
@@ -64,6 +69,11 @@ def box_center(g):
     b = g['comp'].get('BoxCollider2D')
     ox, oy = (b['m_Offset']['x'], b['m_Offset']['y']) if b else (0, 0)
     return m[0] * ox + m[1] * oy + m[2], m[3] * ox + m[4] * oy + m[5]
+
+
+def pos_cell(g):
+    """Apple/Stone/Trap.Start: transform.position = SnapToGrid(transform.position) (GridLayout.WorldToCell: suelo)"""
+    return cell(g['m'][2], g['m'][5])
 
 
 def sprite_of(game, g):
@@ -79,9 +89,17 @@ def level_index(name):
 
 
 def extract_level(game, root_obj, sprites, num):
+    global GRID_O
     root = game.go(root_obj)
+    # primero sin ajustar, para encontrar el Grid; luego otra vez con su origen
+    GRID_O = (0.0, 0.0)
     nodes = []
     walk(root, (1, 0, 0, 0, 1, 0), nodes)
+    grids = [g for g in nodes if 'Grid' in g['comp']]
+    if grids:
+        GRID_O = (grids[0]['m'][2], grids[0]['m'][5])
+        nodes = []
+        walk(root, (1, 0, 0, 0, 1, 0), nodes)
     L = {'num': num, 'name': root['name'], 'solid': set(), 'layers': [], 'objs': [], 'snake': None, 'goal': None}
     gates = {}
     barriers = {}
@@ -129,16 +147,16 @@ def extract_level(game, root_obj, sprites, num):
             L['goal'] = cell(*box_center(g))
         if 'Apple' in mb and mb['Apple'] is not None:
             a = mb['Apple']
-            L['objs'].append({'t': O_APPLE, 'cell': cell(*box_center(g)), 'double': int(a.get('isDouble', 0))})
+            L['objs'].append({'t': O_APPLE, 'cell': pos_cell(g), 'double': int(a.get('isDouble', 0))})
         if 'Stone' in mb and mb['Stone'] is not None:
             spr = None
             for ch in g['children']:
                 if ch['name'] == 'Stone':
                     spr = sprite_of(game, ch)
-            L['objs'].append({'t': O_STONE, 'cell': cell(*box_center(g)), 'spr': sprites.add(spr, 'obj') if spr else -1})
+            L['objs'].append({'t': O_STONE, 'cell': pos_cell(g), 'spr': sprites.add(spr, 'obj') if spr else -1})
         if 'Trap' in mb:
             kind = O_SAW if 'Saw' in g['name'] else O_SPIKE
-            L['objs'].append({'t': kind, 'cell': cell(*box_center(g)), 'rot': rot_deg(g['m'])})
+            L['objs'].append({'t': kind, 'cell': pos_cell(g), 'rot': rot_deg(g['m'])})
         if 'TeleportGate' in mb and mb['TeleportGate'] is not None:
             tg = mb['TeleportGate']
             gates[g['obj'].path_id] = len(L['objs'])
@@ -157,7 +175,7 @@ def extract_level(game, root_obj, sprites, num):
             spr = sprite_of(game, g)
             if spr is not None:
                 m = g['m']
-                L['objs'].append({'t': O_TUT, 'pos': (m[2], m[5]), 'spr': sprites.add(spr, 'tut')})
+                L['objs'].append({'t': O_TUT, 'pos': (m[2] - GRID_O[0], m[5] - GRID_O[1]), 'spr': sprites.add(spr, 'tut')})
     # parejas de teletransporte: 'partner' apunta al componente TeleportGate del otro
     comp2go = {}
     for g in nodes:
@@ -167,7 +185,7 @@ def extract_level(game, root_obj, sprites, num):
     for o in L['objs']:
         if o['t'] == O_BARRIER:
             bg = bypid.get(o.pop('bar_pid'))
-            hx, hy = o['cell'][0] + 1 / 3, o['cell'][1] + 2 / 3
+            hx, hy = GRID_O[0] + o['cell'][0] + 1 / 3, GRID_O[1] + o['cell'][1] + 2 / 3
             if bg is not None:
                 dx, dy = bg['m'][2] - hx, bg['m'][5] - hy
                 o['bdir'] = (3 if dx > 0 else 2) if abs(dx) > abs(dy) else (0 if dy > 0 else 1)

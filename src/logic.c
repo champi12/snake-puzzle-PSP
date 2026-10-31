@@ -10,6 +10,7 @@
 static int inb(const GLevel *g, int x, int y) { return x >= 0 && y >= 0 && x < g->w && y < g->h; }
 static int solid(const GLevel *g, int x, int y) { return inb(g, x, y) && g->solid[IDX(x, y)]; }
 static int killc(const GLevel *g, int x, int y) { return inb(g, x, y) && g->kill[IDX(x, y)]; }
+static int sawc(const GLevel *g, int x, int y) { return inb(g, x, y) && g->kill[IDX(x, y)] == 2; }
 static int is_goal(const GLevel *g, int x, int y) { return x == g->gx && y == g->gy; }
 
 int logic_gate_at(const GLevel *g, int x, int y)
@@ -76,13 +77,17 @@ void logic_load(GLevel *g, GState *s, const Level *L)
             break;
         case O_STONE:
             if (s->nstone < MAX_STONE) {
-                s->st[s->nstone] = (Cell){o->x, o->y};
+                /* dos piedras puestas en la misma casilla (nivel 20): Stone.Start las encaja en el mismo sitio y
+                 * quedan una encima de otra, moviendose como una sola (la solucion oficial cuenta con eso) */
+                int x = o->x, y = o->y;
+                if (logic_stone_at(s, x, y) >= 0) break;
+                s->st[s->nstone] = (Cell){x, y};
                 s->st_alive[s->nstone++] = 1;
             }
             break;
-        case O_SPIKE:
-        case O_SAW:
-            if (inb(g, o->x, o->y)) g->kill[IDX(o->x, o->y)] = 1;
+        case O_SPIKE:   /* solo un trigger: las piedras lo atraviesan */
+        case O_SAW:     /* ademas un BoxCollider2D solido de 1x1 en la capa Saw: las piedras se quedan encima */
+            if (inb(g, o->x, o->y)) g->kill[IDX(o->x, o->y)] = o->type == O_SAW ? 2 : 1;
             break;
         case O_GATE:
             if (g->ngate < MAX_GATE) {
@@ -141,31 +146,40 @@ void logic_load(GLevel *g, GState *s, const Level *L)
 }
 
 /* ---------------------------------------------------------------- fisica */
-/* CheckForSnakeFall: circulo de radio 0,2 bajo cada parte contra la capa Ground (suelo, manzanas, piedras, meta y
- * portales). Los pinchos, aunque no esten en esa capa, tambien sujetan: pisarlos por arriba no mata (la caja del
- * pincho solo ocupa la mitad de abajo de su casilla), es entrar en su casilla lo que mata. */
+/* CheckForSnakeFall: circulo de radio 0,2 en la casilla de debajo de cada parte contra groundLayer (solo la capa
+ * Ground: suelo, manzanas, piedras y meta; el BoxCollider2D de los portales esta desactivado en todos los niveles) y
+ * que no tenga la etiqueta Kill. Pinchos y sierras estan en la
+ * capa Default: no sujetan, la serpiente cae dentro de su casilla y su trigger la mata (Trap -> isDeath). */
 static int supports_snake(const GLevel *g, const GState *s, int x, int y)
 {
-    return solid(g, x, y) || killc(g, x, y) || logic_apple_at(g, s, x, y) >= 0 || logic_stone_at(s, x, y) >= 0 ||
-           is_goal(g, x, y) || logic_gate_at(g, x, y) >= 0;
+    return solid(g, x, y) || logic_apple_at(g, s, x, y) >= 0 || logic_stone_at(s, x, y) >= 0 || is_goal(g, x, y);
 }
 
 static int snake_supported(const GLevel *g, const GState *s)
 {
     for (int i = 0; i < s->n; i++) {
-        int x = s->s[i].x, y = s->s[i].y - 1;
-        if (snake_at(s, x, y, 0, s->n) >= 0) continue;
-        if (supports_snake(g, s, x, y)) return 1;
+        if (supports_snake(g, s, s->s[i].x, s->s[i].y - 1)) return 1;
     }
     return 0;
 }
 
-/* Stone.CheckGroundOrSnakeBelow / CanPush: suelo, serpiente, piedras, barreras y todo lo de la capa Ground */
-static int stone_blocked(const GLevel *g, const GState *s, int x, int y)
+/* Caida de una piedra: es un Rigidbody2D dinamico con gravedad; se para en lo que tenga collider solido de una capa
+ * que choque con Ground (matriz de Physics2D): suelo, manzanas, otras piedras, la serpiente (SnakeBody), sierras
+ * (capa Saw) y haces de barrera (Barrie). La meta, los portales y los pinchos son triggers: los atraviesa. */
+static int stone_rests_on(const GLevel *g, const GState *s, int x, int y)
 {
     return solid(g, x, y) || snake_at(s, x, y, 0, s->n) >= 0 || logic_stone_at(s, x, y) >= 0 ||
-           logic_apple_at(g, s, x, y) >= 0 || is_goal(g, x, y) || logic_gate_at(g, x, y) >= 0 ||
-           logic_beam_at(g, s, x, y) >= 0;
+           logic_apple_at(g, s, x, y) >= 0 || sawc(g, x, y) || logic_beam_at(g, s, x, y) >= 0;
+}
+
+/* Stone.TryPush: OverlapCircle(destino, cs/4, groundLayer|snakeBodyLayer|barrieLayer). Las consultas de Physics2D
+ * ven triggers (queriesHitTriggers), asi que tambien bloquea la meta; no los portales (collider desactivado) ni los
+ * pinchos ni las sierras (capas Default y Saw). Otra piedra esta en Ground: bloquea (LayerMask.GetMask("Stone") vale 0 porque esa capa no
+ * existe, asi que la rama de empujar dos piedras del original nunca se usa). */
+static int push_blocked(const GLevel *g, const GState *s, int x, int y)
+{
+    return solid(g, x, y) || snake_at(s, x, y, 0, s->n) >= 0 || logic_stone_at(s, x, y) >= 0 ||
+           logic_apple_at(g, s, x, y) >= 0 || is_goal(g, x, y) || logic_beam_at(g, s, x, y) >= 0;
 }
 
 /* Switch + Barrie: con algo encima del interruptor el haz se recoge; si no, vuelve a salir hasta la pared o
@@ -225,7 +239,7 @@ static void physics(const GLevel *g, GState *s, GSteps *o)
             if (best < 0) break;
             s->st_alive[best] |= 2;
             int x = s->st[best].x, y = s->st[best].y - 1;
-            if (!stone_blocked(g, s, x, y)) {
+            if (!stone_rests_on(g, s, x, y)) {
                 s->st[best].y--;
                 moved = 1;
                 if (s->st[best].y < -3) s->st_alive[best] = 0;   /* se cayo del mapa */
@@ -265,29 +279,39 @@ void logic_start(const GLevel *g, GState *s, GSteps *o)
     physics(g, s, o);
 }
 
-/* Stone.TryPush (y TryTeleportStone): una fila de piedras se empuja entera; por un portal sale por el otro */
-static int push_stone(const GLevel *g, GState *s, int si, int dir, int depth)
+/* Stone.TryPush: solo izquierda, derecha o arriba (hacia abajo nunca), una casilla, y una sola piedra. Al acabar
+ * (MoveSnakeOnly) CheckStoneFallTeleport: si ha entrado en un portal que se cruza hacia abajo, sale por el otro y se
+ * empuja hacia fuera */
+static int try_push(const GLevel *g, GState *s, int si, int dir)
 {
-    if (depth > MAX_STONE) return 0;
+    if (dir == D_DOWN) return 0;
     int x = s->st[si].x + DIR_DX[dir], y = s->st[si].y + DIR_DY[dir];
-    int gi = logic_gate_at(g, x, y);
-    if (gi >= 0) {
-        if (dir != g->gate_dir[gi]) return 0;
-        int b = g->gate_partner[gi];
-        int out = dir_opposite(g->gate_dir[b]);
-        int ex = g->gate[b].x + DIR_DX[out], ey = g->gate[b].y + DIR_DY[out];
-        int o2 = logic_stone_at(s, ex, ey);
-        if (o2 >= 0) {
-            if (!push_stone(g, s, o2, out, depth + 1)) return 0;
-        } else if (stone_blocked(g, s, ex, ey)) return 0;
-        s->st[si] = (Cell){ex, ey};
-        return 1;
-    }
-    int o2 = logic_stone_at(s, x, y);
-    if (o2 >= 0) {
-        if (!push_stone(g, s, o2, dir, depth + 1)) return 0;
-    } else if (stone_blocked(g, s, x, y)) return 0;
+    if (push_blocked(g, s, x, y)) return 0;
     s->st[si] = (Cell){x, y};
+    int gi = logic_gate_at(g, x, y);
+    if (gi >= 0 && g->gate_dir[gi] == D_DOWN) {
+        int b = g->gate_partner[gi];
+        s->st[si] = g->gate[b];
+        int out = dir_opposite(g->gate_dir[b]);
+        if (out != D_DOWN) {
+            int ex = g->gate[b].x + DIR_DX[out], ey = g->gate[b].y + DIR_DY[out];
+            if (!push_blocked(g, s, ex, ey)) s->st[si] = (Cell){ex, ey};
+        }
+    }
+    return 1;
+}
+
+/* HandleMovement con una piedra delante: TryPush y, si no puede, SnakeController.TryTeleportStone (la piedra esta
+ * dentro de un portal y se empuja en su direccion: aparece en el otro y se empuja hacia fuera; si ahi no cabe se
+ * queda en el portal de salida, como en el original, que la coloca antes de probar el empuje) */
+static int push_stone(const GLevel *g, GState *s, int si, int dir)
+{
+    if (try_push(g, s, si, dir)) return 1;
+    int gi = logic_gate_at(g, s->st[si].x, s->st[si].y);
+    if (gi < 0 || dir != g->gate_dir[gi]) return 0;
+    int b = g->gate_partner[gi];
+    s->st[si] = g->gate[b];
+    try_push(g, s, si, dir_opposite(g->gate_dir[b]));
     return 1;
 }
 
@@ -362,7 +386,7 @@ int logic_move(const GLevel *g, GState *s, int dir, GSteps *o)
     int res = MV_MOVED;
     int si = logic_stone_at(s, tx, ty);
     if (si >= 0) {   /* etiqueta Stone: TryPush o TryTeleportStone; si no, "Detect Stone blocked!" */
-        if (!push_stone(g, s, si, dir, 0)) return MV_BLOCKED;
+        if (!push_stone(g, s, si, dir)) return MV_BLOCKED;
         res = MV_PUSH;
     }
     int gi = logic_gate_at(g, tx, ty);
