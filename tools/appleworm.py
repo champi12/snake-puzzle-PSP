@@ -328,10 +328,11 @@ def export_worm_skins(get, skins, out, apple_img):
             return im
         h1, h2 = piece('line_light_appear'), piece('line_dark_appear')
         c1, c2 = piece('corner_inner_light_to_dark'), piece('corner_inner_dark_to_light')
-        # esquina interior (giro a la derecha: entra hacia arriba y sale a la derecha) y exterior (giro a la
-        # izquierda: entra hacia arriba y sale a la izquierda); en el juego se giran siguiendo el camino
-        o1 = piece('corner_outer_light_to_dark')
-        o2 = piece('corner_outer_dark_to_light')
+        # misma orientacion que las piezas de Snake Puzzle (src/skin.h), para usar la misma tabla de giros
+        # (UpdateVisuals): C une derecha y abajo (esquina interior tal cual), O une arriba e izquierda (la exterior,
+        # que une izquierda y abajo, con espejo vertical); V es la recta girada con la sombra a la derecha
+        o1 = piece('corner_outer_light_to_dark').transpose(Image.FLIP_TOP_BOTTOM)
+        o2 = piece('corner_outer_dark_to_light').transpose(Image.FLIP_TOP_BOTTOM)
         t1, t2 = piece('tail_light_to_dark'), piece('tail_dark_to_light')
         sh = ex.SpriteSheet(ex.FMT_T8, 512, 256)
         for im in (h1, h1.rotate(90), c1, t1, h2, h2.rotate(90), c2, t2, o1, o2):
