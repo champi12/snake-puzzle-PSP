@@ -86,6 +86,8 @@ extern int nwidx;
 extern Tex bg_tex, home_tex;
 extern LevelPack levels;
 extern int nskins, nbgs;
+extern int nskins_aw;               /* skins de Apple Worm (data/aw/skinNN.spr): ids AW_SKIN0 + n */
+#define AW_SKIN0 100
 #define WSPR(i) ((i) < nwidx ? widx[i] : -1)
 
 /* juego */
@@ -132,6 +134,7 @@ void ui_reset_sel(void);
 void draw_button(float x, float y, float w, float h, const char *label, int selected, int enabled);
 void draw_panel(float x, float y, float w, float h);
 void reward_popup(int type, int id);   /* GS_REWARD: aspecto o fondo nuevo */
+void ui_open_shop(void);              /* tienda unica, pestana de aspectos */
 extern int ui_return_state;
 
 /* modo clasico (classic.c) */

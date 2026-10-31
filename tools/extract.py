@@ -698,6 +698,9 @@ def export_shop(G, out):
     skin_icon, bg_icon, prog = [], [], []
     for i in range(32):
         o = G.get('shopitems/skins/%d' % i, 'Sprite')
+        if o is None and G.get('snake/%d/%s' % (i, SKIN_PARTS[0]), 'Sprite') is not None:
+            # aspecto sin icono de tienda en el APK (el 14): su icono propio o su cabeza
+            o = G.get('skin/%d' % i, 'Sprite') or G.get('snake/%d/head/idle/head_idle_1' % i, 'Sprite')
         skin_icon.append(sh.add_unity(o, scale=48, maxpx=56) if o else -1)
     for i in range(32):
         o = G.get('shopitems/backgrounds/%d' % i, 'Sprite')

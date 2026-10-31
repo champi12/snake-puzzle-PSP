@@ -35,5 +35,7 @@ void aw_select_input(unsigned in);
 void aw_skins_draw(void);
 void aw_skins_input(unsigned in);
 void aw_enter(void);               /* desde el inicio: a la seleccion de nivel */
+void aw_enter_pack(int pack);      /* seleccion de nivel con la interfaz de Apple Worm: 0 Snake Puzzle, 1 Apple Worm */
+int aw_ui_ok(void);                /* hay graficos de Apple Worm para la seleccion de nivel */
 
 #endif

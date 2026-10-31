@@ -28,7 +28,7 @@ static int confirm_reset;
 static const int SKIN_ORDER[] = {0, 20, 2, 15, 21, 27, 23, 28, 16, 10, 17, 3, 4, 22, 6, 11, 13, 7, 1, 18, 8, 9, 19, 12, 5,
                                  14, 24, 25, 26};
 static const int BG_ORDER[] = {0, 1, 11, 8, 9, 12, 2, 13, 7, 6, 10, 4, 5, 3};
-static int shop_list[32], shop_count;
+static int shop_list[64], shop_count;
 
 void ui_reset_sel(void) { sel = 0; }
 
@@ -138,7 +138,10 @@ static void home_input(unsigned in)
     switch (sel) {
     case H_PLAY: aw_mode = 0; play_start(sv.cur_level, 0); break;
     case H_AW: sel = 0; aw_enter(); break;
-    case H_LEVELS: aw_mode = 0; page = sv.cur_level / 15; sel = sv.cur_level % 15; set_state(GS_SELECT); break;
+    case H_LEVELS:
+        aw_mode = 0;
+        if (aw_ui_ok()) { sel = 0; aw_enter_pack(0); break; }   /* seleccion de nivel de Apple Worm para todo */
+        page = sv.cur_level / 15; sel = sv.cur_level % 15; set_state(GS_SELECT); break;
     case H_CLASSIC: classic_start(); break;
     case H_SHOP: shop_tab = 0; sel = 0; set_state(GS_SHOP); break;
     case H_DAILY: sel = 0; set_state(GS_DAILY); break;
@@ -229,9 +232,9 @@ static void pause_input(unsigned in)
     case 0: set_state(GS_PLAY); break;
     case 1: play_start(play_idx, 0); break;
     case 2:
-        if (aw_mode) { set_state(GS_AW_SELECT); break; }
+        if (aw_ui_ok()) { aw_enter_pack(aw_mode); break; }
         page = play_idx / 15; sel = play_idx % 15; set_state(GS_SELECT); break;
-    case 3: sel = 0; set_state(aw_mode ? GS_AW_SELECT : GS_HOME); break;
+    case 3: sel = 0; set_state(GS_HOME); break;
     }
     if (gstate != GS_PAUSE && gstate != GS_SELECT && gstate != GS_AW_SELECT) sel = 0;
 }
@@ -284,7 +287,7 @@ static void win_input(unsigned in)
     int cnt = aw_mode ? aw_levels.count : levels.count;
     if (sel == 0) play_start(play_idx + 1 < cnt ? play_idx + 1 : play_idx, 0);
     else if (sel == 1) play_start(play_idx, 0);
-    else set_state(aw_mode ? GS_AW_SELECT : GS_HOME);
+    else set_state(GS_HOME);
     sel = 0;
 }
 
@@ -335,10 +338,16 @@ static void lose_input(unsigned in)
             game_save();
             play_start(play_idx + 1 < cnt ? play_idx + 1 : play_idx, 0);
         } else sel = 2;
-    } else set_state(aw_mode ? GS_AW_SELECT : GS_HOME);
+    } else set_state(GS_HOME);
 }
 
 /* ---------------------------------------------------------------- tienda */
+void ui_open_shop(void)
+{
+    shop_tab = 0;
+    sel = 0;
+    set_state(GS_SHOP);
+}
 static const ShopItemDef *item_def(int type, int id)
 {
     for (int i = 0; i < meta.nshop; i++)
@@ -357,6 +366,20 @@ static void shop_build(void)
         if (ord[i] < total && !used[ord[i]]) { shop_list[shop_count++] = ord[i]; used[ord[i]] = 1; }
     for (int i = 0; i < total && i < 32; i++)
         if (!used[i]) shop_list[shop_count++] = i;
+    /* tienda unica: detras de los aspectos de Snake Puzzle, los gusanos de Apple Worm */
+    if (!shop_tab)
+        for (int i = 0; i < nskins_aw && shop_count < 64; i++) shop_list[shop_count++] = AW_SKIN0 + i;
+}
+
+/* icono de un articulo: los de Apple Worm, su vista previa */
+static void item_icon(int tab, int id, float x, float y, float w, float h, uint32_t col)
+{
+    if (!tab && id >= AW_SKIN0) {
+        if (aw_open() == 0) gfx_sprite_fit(&aw_sheet, aw_spr(AWU_PREVIEW0 + id - AW_SKIN0), x, y, w, h, col);
+        return;
+    }
+    int icon = tab ? meta.bg_icon[id & 31] : meta.skin_icon[id & 31];
+    if (icon >= 0) gfx_sprite_fit(&shop_sheet, icon, x, y, w, h, col);
 }
 
 /* lo que hace falta para un articulo bloqueado: fichas (en vez de anuncios), progreso o evento */
@@ -513,8 +536,7 @@ static void shop_draw(void)
     int id = shop_list[sel];
     if (shop_tab == 0 && id == sv.skin) draw_snake_preview(108, 112, 26, 5);
     else {
-        int icon = shop_tab ? meta.bg_icon[id & 31] : meta.skin_icon[id & 31];
-        if (icon >= 0) gfx_sprite_fit(&shop_sheet, icon, 108, 112, shop_tab ? 170 : 110, 110, WHITE);
+        item_icon(shop_tab, id, 108, 112, shop_tab ? 170 : 110, 110, WHITE);
     }
     char b[64];
     int owned = shop_tab ? bg_available(id) : skin_available(id);
@@ -528,19 +550,24 @@ static void shop_draw(void)
     text_draw(108, 182, FONT_M, b, TXT_DARK, 1);
     if (!owned && why) text_draw(108, 206, FONT_S, why, RGBA(200, 90, 30, 255), 1);
     /* cuadricula */
-    for (int k = 0; k < shop_count; k++) {
+    /* 4 filas a la vista: la cuadricula se desplaza con el cursor */
+    int first_row = sel / 5 > 3 ? sel / 5 - 3 : 0;
+    int rows = (shop_count + 4) / 5;
+    for (int k = first_row * 5; k < shop_count; k++) {
         int i = shop_list[k];
-        float x = 240 + (k % 5) * 47, y = 58 + (k / 5) * 46;
-        if (y > 250) break;
+        float x = 240 + (k % 5) * 47, y = 58 + (k / 5 - first_row) * 46;
+        if (y > 220) break;
         int own = shop_tab ? bg_available(i) : skin_available(i);
         int slot = WSPR(own ? UI_SLOT_UNLOCKED : UI_SLOT_LOCKED);
         float s = k == sel ? 44 : 40;
         if (slot >= 0) gfx_sprite_rect(&world, slot, x - s / 2, y - s / 2, s, s, WHITE);
         else gfx_fill(x - s / 2, y - s / 2, s, s, own ? RGBA(90, 160, 60, 255) : RGBA(90, 90, 90, 255));
-        int icon = shop_tab ? meta.bg_icon[i & 31] : meta.skin_icon[i & 31];
-        if (icon >= 0) gfx_sprite_fit(&shop_sheet, icon, x, y, s * 0.8f, s * 0.8f, own ? WHITE : RGBA(110, 110, 110, 255));
+        item_icon(shop_tab, i, x, y, s * 0.8f, s * 0.8f, own ? WHITE : RGBA(110, 110, 110, 255));
         if ((shop_tab ? sv.bg : sv.skin) == i) gfx_sprite_fit(&world, WSPR(UI_ICON_TICK), x + 14, y + 14, 18, 18, WHITE);
     }
+    /* flechas si hay filas por arriba o por abajo */
+    if (first_row > 0) text_draw(352, 30, FONT_M, "^", WHITE, 1);
+    if (first_row + 4 < rows) text_draw(352, 226, FONT_M, "v", WHITE, 1);
     counters(SCR_H - 40);
     help(T(BTN_X " Elegir/pagar   " BTN_O " Volver   L/R Pestana"));
 }

@@ -201,6 +201,22 @@ int main(int argc, char **argv)
             snprintf(b, sizeof(b), "aw_nivel%d", lv == 0 ? 1 : 30);
             shot(b);
         }
+        /* tienda unica: bajar hasta los gusanos de Apple Worm y equipar uno; jugar con el */
+        ui_open_shop();
+        for (int k = 0; k < 7; k++) frames(2, IN_DOWN);
+        shot("tienda_aw_skins");
+        sv.skin = AW_SKIN0 + 1;
+        load_skin(sv.skin);
+        aw_mode = 1;
+        play_start(2, 0);
+        frames(40, 0);
+        shot("aw_nivel3_skin_aw");
+        aw_mode = 0;
+        play_start(2, 0);
+        frames(40, 0);
+        shot("sp_nivel3_skin_aw");
+        sv.skin = 0;
+        load_skin(0);
         aw_mode = 1;
         play_solution(0, -1);
         frames(200, 0);

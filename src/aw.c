@@ -22,12 +22,17 @@ static int naidx, loaded = -1;
 
 #define AW_SKINS_MAX 24
 static struct { char name[16]; uint8_t type; uint16_t count; } skins[AW_SKINS_MAX];
-static int nskins_aw;
+static int naw_info;
 #define IAP_PRICE 2500             /* skins de pago del original: con monedas */
 
 static int page, sel, skin_sel;
+static int sel_pack = 1;           /* seleccion de nivel: 0 niveles de Snake Puzzle, 1 de Apple Worm */
+static int pk_count(void) { return sel_pack ? aw_levels.count : levels.count; }
+static int pk_won(int i) { return sel_pack ? aw_level_won(i) : level_won(i); }
+static int pk_cur(void) { return sel_pack ? sv.aw_cur : sv.cur_level; }
 
 int aw_spr(int i) { return i >= 0 && i < naidx ? aidx[i] : -1; }
+int aw_ui_ok(void) { return aw_available() && aw_open() == 0 && aw_spr(AWU_PLACE_LEVEL) >= 0; }
 
 int aw_available(void)
 {
@@ -61,9 +66,9 @@ int aw_open(void)
     f = fopen("data/aw/aw_skins.bin", "rb");
     if (f) {
         uint8_t b[4];
-        if (fread(b, 1, 2, f) == 2) nskins_aw = b[0] | b[1] << 8;
-        if (nskins_aw > AW_SKINS_MAX) nskins_aw = AW_SKINS_MAX;
-        for (int i = 0; i < nskins_aw; i++) {
+        if (fread(b, 1, 2, f) == 2) naw_info = b[0] | b[1] << 8;
+        if (naw_info > AW_SKINS_MAX) naw_info = AW_SKINS_MAX;
+        for (int i = 0; i < naw_info; i++) {
             int l = fgetc(f);
             if (l < 0 || l > 15) break;
             if (fread(skins[i].name, 1, l, f) != (size_t)l) break;
@@ -74,7 +79,7 @@ int aw_open(void)
         }
         fclose(f);
     }
-    dlog("Apple Worm: %d niveles, %d graficos, %d skins", aw_levels.count, naidx, nskins_aw);
+    dlog("Apple Worm: %d niveles, %d graficos, %d skins", aw_levels.count, naidx, naw_info);
     return loaded = 0;
 }
 
@@ -96,7 +101,7 @@ static int skin_owned(int i) { return i < 32 && (sv.aw_skins_owned >> i) & 1; }
 static void unlock_by_levels(void)
 {
     int won = aw_levels_won_count();
-    for (int i = 0; i < nskins_aw; i++)
+    for (int i = 0; i < naw_info; i++)
         if (skins[i].type == 4 && won >= skins[i].count && !skin_owned(i)) {
             sv.aw_skins_owned |= 1u << i;
             ui_message(T("Skin nueva desbloqueada!"), 2.0f);
@@ -116,14 +121,17 @@ void aw_on_win(int idx, int first)
     unlock_by_levels();
 }
 
-void aw_enter(void)
+void aw_enter(void) { aw_enter_pack(1); }
+
+void aw_enter_pack(int pack)
 {
+    sel_pack = pack;
     if (aw_open()) {
         ui_message(T("Faltan los datos de Apple Worm (data/aw)"), 2.0f);
         return;
     }
-    page = sv.aw_cur / 15;
-    sel = sv.aw_cur % 15;
+    page = pk_cur() / 15;
+    sel = pk_cur() % 15;
     set_state(GS_AW_SELECT);
 }
 
@@ -138,7 +146,7 @@ static void counters_aw(void)
     text_draw(34, 8, FONT_M, b, WHITE, 0);
 }
 
-static int level_open(int i) { return i <= sv.aw_cur || aw_level_won(i); }
+static int level_open(int i) { return i <= pk_cur() || pk_won(i); }
 
 void aw_select_draw(void)
 {
@@ -147,23 +155,23 @@ void aw_select_draw(void)
     if (win >= 0) gfx_sprite_rect(&aw_sheet, win, 50, 22, 380, 224, WHITE);
     else draw_panel(50, 22, 380, 224);
     char b[48];
-    int pages = (aw_levels.count + 14) / 15;
-    snprintf(b, sizeof(b), "APPLE WORM   %d / %d", page + 1, pages);
+    int pages = (pk_count() + 14) / 15;
+    snprintf(b, sizeof(b), "%s   %d / %d", sel_pack ? "APPLE WORM" : "SNAKE PUZZLE", page + 1, pages);
     text_draw(SCR_W / 2, 30, FONT_L, b, WHITE, 1);
     for (int k = 0; k < 15; k++) {
         int i = page * 15 + k;
-        if (i >= aw_levels.count) break;
+        if (i >= pk_count()) break;
         float x = 106 + (k % 5) * 67, y = 90 + (k / 5) * 54;
         int open = level_open(i), on = k == sel;
         float s = on ? 1.1f + 0.05f * sinf(gtime * 6) : 1.0f;
         if (open) {
             /* place_level; con skin de premio (levels.json skinReward: 10, 50 y 100) place_level_with_skin */
-            int skin_lv = i + 1 == 10 || i + 1 == 50 || i + 1 == 100;
+            int skin_lv = sel_pack && (i + 1 == 10 || i + 1 == 50 || i + 1 == 100);
             fit(skin_lv ? AWU_PLACE_LEVEL_SKIN : AWU_PLACE_LEVEL, x, y, 46 * s, 44 * s);
             snprintf(b, sizeof(b), "%d", i + 1);
             text_draw(x, y - 12 * s, FONT_L, b, RGBA(110, 70, 40, 255), 1);
             /* estrellas: las tres al superarlo (el original las da segun pistas usadas) */
-            int w = aw_level_won(i);
+            int w = pk_won(i);
             fit(w ? AWU_STAR_L : AWU_STAR_L_G, x - 13, y + 19, 13, 13);
             fit(w ? AWU_STAR_C : AWU_STAR_C_G, x, y + 17, 15, 15);
             fit(w ? AWU_STAR_R : AWU_STAR_R_G, x + 13, y + 19, 13, 13);
@@ -181,36 +189,35 @@ void aw_select_draw(void)
 
 void aw_select_input(unsigned in)
 {
-    int pages = (aw_levels.count + 14) / 15;
+    int pages = (pk_count() + 14) / 15;
     if (in & (IN_UP | IN_DOWN | IN_LEFT | IN_RIGHT | IN_L | IN_R)) play_sfx(SFX_CLICK8);
     if (in & IN_LEFT) {
         if (sel % 5 > 0) sel--;
         else if (page > 0) { page--; sel += 4; }
     }
     if (in & IN_RIGHT) {
-        if (sel % 5 < 4 && page * 15 + sel + 1 < aw_levels.count) sel++;
+        if (sel % 5 < 4 && page * 15 + sel + 1 < pk_count()) sel++;
         else if (page < pages - 1) { page++; sel -= 4; }
     }
     if (in & IN_UP && sel >= 5) sel -= 5;
-    if (in & IN_DOWN && sel + 5 < 15 && page * 15 + sel + 5 < aw_levels.count) sel += 5;
+    if (in & IN_DOWN && sel + 5 < 15 && page * 15 + sel + 5 < pk_count()) sel += 5;
     if (in & IN_L && page > 0) page--;
     if (in & IN_R && page < pages - 1) page++;
-    while (page * 15 + sel >= aw_levels.count && sel > 0) sel--;
+    while (page * 15 + sel >= pk_count() && sel > 0) sel--;
     if (in & IN_CROSS) {
         int i = page * 15 + sel;
         if (level_open(i)) {
             play_sfx(SFX_CLICK);
-            aw_mode = 1;
+            aw_mode = sel_pack;
             play_start(i, 0);
         } else {
             play_sfx(SFX_STOP);
             ui_message(T("Supera los niveles anteriores para abrir este"), 1.5f);
         }
     }
-    if (in & IN_TRIANGLE) {
+    if (in & IN_TRIANGLE) {      /* skins: la tienda unica del juego */
         play_sfx(SFX_CLICK);
-        skin_sel = sv.aw_skin < nskins_aw ? sv.aw_skin : 0;
-        set_state(GS_AW_SKINS);
+        ui_open_shop();
     }
     if (in & IN_CIRCLE) {
         play_sfx(SFX_CLICK);
@@ -230,7 +237,7 @@ void aw_skins_draw(void)
     else draw_panel(30, 14, 420, 236);
     text_draw(SCR_W / 2, 22, FONT_L, "SKINS", WHITE, 1);
     char b[48];
-    for (int i = 0; i < nskins_aw; i++) {
+    for (int i = 0; i < naw_info; i++) {
         float x = 78 + (i % 6) * 65, y = 76 + (i / 6) * 50;
         int on = i == skin_sel;
         fit(i == sv.aw_skin ? AWU_PLACE_LEVEL_SKIN : AWU_PLACE_LEVEL, x, y, on ? 58 : 52, on ? 46 : 42);
@@ -238,7 +245,7 @@ void aw_skins_draw(void)
         if (i == sv.aw_skin) fit(AWU_CHECK, x + 20, y - 14, 16, 13);
         else if (!skin_owned(i)) fit(AWU_LOCK, x + 18, y + 12, 14, 14);
     }
-    if (skin_sel < nskins_aw) {
+    if (skin_sel < naw_info) {
         int i = skin_sel;
         if (i == sv.aw_skin) snprintf(b, sizeof(b), "%s  -  %s", skins[i].name, T("EQUIPADO"));
         else if (skin_owned(i)) snprintf(b, sizeof(b), "%s  -  " BTN_X " %s", skins[i].name, T("Equipar"));
@@ -254,14 +261,14 @@ void aw_skins_input(unsigned in)
 {
     if (in & (IN_UP | IN_DOWN | IN_LEFT | IN_RIGHT)) play_sfx(SFX_CLICK8);
     if (in & IN_LEFT && skin_sel > 0) skin_sel--;
-    if (in & IN_RIGHT && skin_sel + 1 < nskins_aw) skin_sel++;
+    if (in & IN_RIGHT && skin_sel + 1 < naw_info) skin_sel++;
     if (in & IN_UP && skin_sel >= 6) skin_sel -= 6;
-    if (in & IN_DOWN && skin_sel + 6 < nskins_aw) skin_sel += 6;
+    if (in & IN_DOWN && skin_sel + 6 < naw_info) skin_sel += 6;
     if (in & IN_CIRCLE) {
         play_sfx(SFX_CLICK);
         set_state(GS_AW_SELECT);
     }
-    if (!(in & IN_CROSS) || skin_sel >= nskins_aw) return;
+    if (!(in & IN_CROSS) || skin_sel >= naw_info) return;
     int i = skin_sel;
     if (skin_owned(i)) {
         sv.aw_skin = i;

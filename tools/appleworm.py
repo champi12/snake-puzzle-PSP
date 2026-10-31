@@ -276,6 +276,9 @@ def export_assets(src, out):
     for sk in skins:
         o = get('packs/' + sk['previewPath'].lower(), 'Sprite')
         idx.append(sheet.add_unity(o, scale=48, maxpx=96) if o is not None else -1)
+    apple_img = region_image(tex, reg['objects/apple']) if 'objects/apple' in reg else Image.new('RGBA', (32, 32))
+    apple_img = apple_img.resize((ex.PX, max(1, ex.PX * apple_img.height // max(1, apple_img.width))), Image.LANCZOS)
+    export_worm_skins(get, skins, out, apple_img)
     size = sheet.write(os.path.join(out, 'aw.spr'))
     with open(os.path.join(out, 'aw.idx'), 'wb') as f:
         f.write(struct.pack('<H', len(idx)) + struct.pack('<%dh' % len(idx), *idx))
@@ -286,6 +289,82 @@ def export_assets(src, out):
             nm = sk['name'].encode()[:15]
             f.write(struct.pack('<B', len(nm)) + nm + struct.pack('<BH', sk['typeOfGetting'], sk['countForGet']))
     print('  Apple Worm: %d graficos (%d KB), %d skins' % (len(sheet.items), size // 1024, len(skins)))
+
+
+def _spine(get, base):
+    """(esqueleto, regiones) de packs/<skin>/<parte>/skeleton"""
+    import spine_render as sr
+    tex = get('packs/%s/skeleton' % base, 'Texture2D')
+    js = get('packs/%s/skeleton' % base, 'TextAsset')
+    at = get('packs/%s/skeleton.atlas' % base, 'TextAsset')
+    if tex is None or js is None or at is None:
+        return None, None
+    raw = js.read().m_Script
+    raw = raw if isinstance(raw, bytes) else raw.encode('utf8', 'surrogateescape')
+    a = at.read().m_Script
+    return json.loads(raw), sr.parse_atlas(a.decode('utf8', 'replace') if isinstance(a, bytes) else a,
+                                           tex.read().image.convert('RGBA'))
+
+
+def export_worm_skins(get, skins, out, apple_img):
+    """cada skin de Apple Worm como data/aw/skinNN.spr, con las piezas y fotogramas de src/skin.h:
+    H1 V1 C1 T1 H2 V2 C2 T2 O1 O2, 28 fotogramas de cabeza, manzana e icono"""
+    import spine_render as sr
+    import extract as ex
+    from PIL import Image
+    cell = (-128, -128, 128, 128)          # una casilla del gusano mide 256 unidades de Spine
+    n = 0
+    for k, sk in enumerate(skins):
+        wbase = sk['wormPath'].lower().rsplit('/', 1)[0] + '/worm'
+        fbase = sk['facePath'].lower().rsplit('/', 1)[0] + '/face'
+        wsk, wreg = _spine(get, wbase)
+        fsk, freg = _spine(get, fbase)
+        if wsk is None or fsk is None:
+            print('  aviso: skin %s sin esqueleto' % sk['name'])
+            continue
+
+        def piece(anim):
+            im, _ = sr.render(wsk, wreg, anim, None, box=cell, px=ex.PX)
+            return im
+        h1, h2 = piece('line_light_appear'), piece('line_dark_appear')
+        c1, c2 = piece('corner_inner_light_to_dark'), piece('corner_inner_dark_to_light')
+        o1 = piece('corner_outer_light_to_dark').transpose(Image.FLIP_TOP_BOTTOM)
+        o2 = piece('corner_outer_dark_to_light').transpose(Image.FLIP_TOP_BOTTOM)
+        t1, t2 = piece('tail_light_to_dark'), piece('tail_dark_to_light')
+        sh = ex.SpriteSheet(ex.FMT_T8, 512, 256)
+        for im in (h1, h1.rotate(90), c1, t1, h2, h2.rotate(90), c2, t2, o1, o2):
+            sh.add_image(im, -0.5, -0.5, 1.0, 1.0)
+        # cabeza: la cara en una casilla (la caja de la pose 'static'), a 40 px por casilla como en Snake Puzzle
+        _, fb = sr.render(fsk, freg, 'static', None, px=64)
+        cx, cy = (fb[0] + fb[2]) / 2, (fb[1] + fb[3]) / 2
+        half = max(fb[2] - fb[0], fb[3] - fb[1]) / 2
+        hbox = (cx - half, cy - half, cx + half, cy + half)
+        hu = 2 * half / 256.0                 # tamano de la cara en casillas
+
+        def face(anim, frac):
+            dur = 0
+            for tls in fsk['animations'].get(anim, {}).get('slots', {}).values():
+                for tl in tls.values():
+                    dur = max([dur] + [x.get('time', 0) for x in tl])
+            for tls in fsk['animations'].get(anim, {}).get('bones', {}).values():
+                for tl in tls.values():
+                    dur = max([dur] + [x.get('time', 0) for x in tl])
+            im, _ = sr.render(fsk, freg, anim, dur * frac, box=hbox, px=40 * hu)
+            return im
+        frames = ([face('static', 0)] * 3 + [face('idle_1', f / 4) for f in range(5)] +
+                  [face('eating', f / 9) for f in range(10)] + [face('near_apple_start', f / 4) for f in range(5)] +
+                  [face('near_wall_start', f / 3) for f in range(4)] + [face('dead', 1)])
+        for im in frames:
+            sh.add_image(im, -hu / 2, -hu / 2, hu, hu)
+        sh.add_image(apple_img, -0.5, -0.5, 1.0, 1.0)
+        prev = get('packs/' + sk['previewPath'].lower(), 'Sprite')
+        if prev is not None:
+            sh.add_unity(prev, scale=40, maxpx=64)
+        else:
+            sh.add_image(frames[0], -hu / 2, -hu / 2, hu, hu)
+        sh.write(os.path.join(out, 'skin%02d.spr' % k))
+        n += 1
+    print('  Apple Worm: %d skins de gusano' % n)
 
 
 def load_skins(src):
