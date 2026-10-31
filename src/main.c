@@ -223,6 +223,7 @@ int main(int argc, char **argv)
     game_init();
     mem_query(&dbg_mem);
     dlog_boot_done();
+    dlog_mem("arranque");
     dlog("Arranque completo en %.2f s | monton %u/%u KB usado | libre fuera del monton %u KB",
          (sceKernelGetSystemTimeLow() - tl) / 1000000.0f, dbg_mem.heap_used / 1024, dbg_mem.heap_total / 1024,
          dbg_mem.sys_free / 1024);

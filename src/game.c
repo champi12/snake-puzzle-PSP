@@ -36,8 +36,12 @@ void set_state(int s)
 {
     /* las ventanas que salen encima del juego empiezan siempre por su primer boton */
     if (s != gstate && (s == GS_WIN || s == GS_LOSE || s == GS_PAUSE)) ui_reset_sel();
+    int prev = gstate;
     gstate = s;
     dbg_game.state = s;
+    /* puntos de control de memoria: deben dar lo mismo cada vez que se pasa por ellos */
+    if (s != prev && (s == GS_HOME || s == GS_SHOP || s == GS_SELECT || s == GS_AW_SELECT))
+        dlog_mem(dbg_state_name(s));
 }
 
 void play_sfx(int id) { audio_play(id, 1.0f); }
@@ -138,7 +142,9 @@ static void load_begin(void) { load_t0 = plat_ms(); }
 static void load_end(const char *what, uint32_t bytes)
 {
     dbg_loads_frame++;
-    dlog("CARGA %-14s %6u KB en %4u ms", what, (unsigned)(bytes / 1024), plat_ms() - load_t0);
+    mem_query(&dbg_mem);
+    dlog("CARGA %-14s %6u KB en %4u ms | monton %u KB", what, (unsigned)(bytes / 1024), plat_ms() - load_t0,
+         dbg_mem.heap_used / 1024);
 }
 
 extern uint32_t gfx_vram_mark(void);

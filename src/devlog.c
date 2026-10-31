@@ -84,6 +84,7 @@ void mem_query(MemInfo *m)
     m->heap_peak = dbg_mem.heap_peak;
     m->sys_free = sceKernelTotalFreeMemSize();
     m->sys_max_block = sceKernelMaxFreeMemSize();
+    m->heap_free_in = mi.fordblks;
 }
 
 static void power_query(void)
@@ -352,6 +353,39 @@ static struct {
     unsigned long long t0;
 } win;
 static int last_state = -1;
+
+/* ------------------------------------------------------------ apartado MEMORIA */
+static struct { const char *where; unsigned used; } checkpoints[16];
+static int ncheck;
+
+void dlog_mem(const char *where)
+{
+    MemInfo *m = &dbg_mem;
+    mem_query(m);
+    unsigned fat_left = m->heap_used / 1024 < FAT_HEAP_KB ? FAT_HEAP_KB - m->heap_used / 1024 : 0;
+    dlog("MEMORIA %s: monton %u KB usados (pico %u) de %u | huecos libres dentro %u KB | sistema %u KB (bloque mayor "
+         "%u KB) | texturas VRAM %u KB (%d), RAM %u KB (%d) | margen en PSP-1000 %u KB",
+         where, m->heap_used / 1024, m->heap_peak / 1024, m->heap_total / 1024, m->heap_free_in / 1024,
+         m->sys_free / 1024, m->sys_max_block / 1024, (unsigned)gstat.vram_tex / 1024, gstat.vram_tex_n,
+         (unsigned)gstat.ram_tex / 1024, gstat.ram_tex_n, fat_left);
+    /* fuga: en el mismo punto la memoria deberia ser la misma cada vez (se cargan las mismas cosas) */
+    int k;
+    for (k = 0; k < ncheck; k++)
+        if (!strcmp(checkpoints[k].where, where)) break;
+    if (k == ncheck) {
+        if (ncheck < 16) {
+            checkpoints[ncheck].where = where;
+            checkpoints[ncheck].used = m->heap_used;
+            ncheck++;
+        }
+    } else if (m->heap_used > checkpoints[k].used + 256 * 1024) {
+        dlog("AVISO posible fuga de memoria: en %s hay %u KB mas que la primera vez (%u -> %u KB)", where,
+             (m->heap_used - checkpoints[k].used) / 1024, checkpoints[k].used / 1024, m->heap_used / 1024);
+    }
+    if (m->heap_peak / 1024 > FAT_HEAP_KB - 2048)
+        dlog("AVISO el pico de memoria (%u KB) se acerca al limite de una PSP-1000 (%u KB)", m->heap_peak / 1024,
+             (unsigned)FAT_HEAP_KB);
+}
 
 static void stat_line(void)
 {

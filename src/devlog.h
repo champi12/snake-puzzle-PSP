@@ -16,7 +16,11 @@ typedef struct {
     unsigned heap_peak;      /* maximo visto */
     unsigned sys_free;       /* memoria libre del sistema fuera del monton (pilas de hilos, audio...) */
     unsigned sys_max_block;  /* bloque libre mas grande fuera del monton */
+    unsigned heap_free_in;   /* libre dentro de lo que el monton ya ha pedido (huecos) */
 } MemInfo;
+
+/* PSP-1000 (fat): 32 MB de RAM; al juego le quedan unos 20 MB de monton. El juego tiene que caber ahi */
+#define FAT_HEAP_KB (20 * 1024)
 
 /* datos para la pantalla de depuracion (se actualizan en dbg_frame) */
 extern MemInfo dbg_mem;
@@ -73,7 +77,11 @@ void dlog(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void dlog_error(const char *fmt, ...) __attribute__((format(printf, 1, 2)));   /* se escribe al momento */
 void dlog_flush(void);
 void dlog_close(void);
+/* apartado MEMORIA: estado de la memoria en un punto (al volver al inicio, a la tienda...) y aviso de fuga si
+ * crece respecto a la primera vez que se paso por el mismo punto */
+void dlog_mem(const char *where);
 #else
+#define dlog_mem(w) ((void)0)
 #define dlog_path() "desactivado (version publica: compila con DEVLOG=1)"
 #define dlog_ok() 0
 #define dlog_init() ((void)0)

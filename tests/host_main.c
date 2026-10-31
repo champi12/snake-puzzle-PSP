@@ -21,6 +21,8 @@ float dbg_sect_ms[8];
 volatile const char *dbg_phase_main, *dbg_phase_music, *dbg_phase_mixer;
 volatile int dbg_tracing;
 void dbg_trace(const char *s) { (void)s; }
+#include <malloc.h>
+void mem_query(MemInfo *m) { struct mallinfo2 mi = mallinfo2(); m->heap_used = mi.uordblks; }
 
 static unsigned fake_ms;
 unsigned plat_ms(void) { return fake_ms; }
@@ -249,6 +251,14 @@ int main(int argc, char **argv)
         }
         sv.skin = 0;
         load_skin(0);
+        /* fugas: equipar 60 aspectos seguidos no debe hacer crecer la memoria */
+        {
+            struct mallinfo2 a = mallinfo2();
+            for (int k = 0; k < 60; k++) load_skin(k & 1 ? AW_SKIN0 + k % 19 : k % 29);
+            load_skin(0);
+            struct mallinfo2 b = mallinfo2();
+            printf("memoria tras 60 cambios de aspecto: %+ld KB\n", ((long)b.uordblks - (long)a.uordblks) / 1024);
+        }
         aw_mode = 1;
         play_solution(0, -1);
         frames(200, 0);
