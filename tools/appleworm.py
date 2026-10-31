@@ -292,11 +292,15 @@ def export_assets(src, out):
                         esize[a.get('path', an)] = (a['width'] / SPINE_CELL, a['height'] / SPINE_CELL)
         except Exception:
             pass
+    # cada region en su lienzo original (orig + offset del .atlas): la franja del relieve de la piedra va a la
+    # izquierda de su lienzo de 322x326, no estirada
+    import spine_render as sr
+    full = sr.parse_atlas(at_s, tex)
     for n in ELEMENTS:
         if n not in reg:
             idx.append(-1)
             continue
-        im = region_image(tex, reg[n])
+        im = full.get(n) or region_image(tex, reg[n])
         w, h = im.size
         cpx = CELL_PX * scale_k
         uw, uh = esize.get(n, (w / cpx, h / cpx))
