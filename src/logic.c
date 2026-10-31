@@ -61,6 +61,7 @@ void logic_load(GLevel *g, GState *s, const Level *L)
     memcpy(g->solid, L->solid, sizeof(g->solid));
     g->gx = L->gx;
     g->gy = L->gy;
+    g->aw = L->num >= 1000;
     int barmap[LV_MAXOBJ];
     for (int i = 0; i < L->nobj; i++) barmap[i] = -1;
     int gatemap[LV_MAXOBJ];
@@ -184,7 +185,7 @@ static int snake_supported(const GLevel *g, const GState *s)
 static int stone_rests_on(const GLevel *g, const GState *s, int x, int y)
 {
     return solid(g, x, y) || snake_at(s, x, y, 0, s->n) >= 0 || logic_stone_at(s, x, y) >= 0 ||
-           logic_apple_at(g, s, x, y) >= 0 || sawc(g, x, y) || logic_beam_at(g, s, x, y) >= 0;
+           logic_apple_at(g, s, x, y) >= 0 || (sawc(g, x, y) && !g->aw) || logic_beam_at(g, s, x, y) >= 0;
 }
 
 /* Stone.TryPush: OverlapCircle(destino, cs/4, groundLayer|snakeBodyLayer|barrieLayer). Las consultas de Physics2D

@@ -63,7 +63,9 @@ int main(int argc, char **argv)
             if (S.dead || S.win) break;
         }
         total++;
-        if (S.win && k == L.nhint - 1) ok++;
+        /* ganar antes de la ultima flecha tambien vale: alguna pista grabada trae pulsaciones de mas (nivel 87:
+         * una flecha pulsada mientras la serpiente caia) */
+        if (S.win) ok++;
         else {
             char b[64];
             snprintf(b, sizeof(b), " %d(%s %d/%d)", L.num, S.dead ? "muere" : S.win ? "antes" : "no", k, L.nhint);
