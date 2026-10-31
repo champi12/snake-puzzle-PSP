@@ -10,8 +10,8 @@ steps: la solucion oficial con el mismo enum de direcciones que Snake Puzzle (0 
 Graficos (data/aw/aw.spr + aw.idx, orden fijo de src/aw.h):
     0..15  bloques de suelo de la skin Original, Block_<arriba><derecha><abajo><izquierda>f (1 = hay vecino): la cara
     16..31 los mismos en 'b': el relieve de arriba y de la izquierda, que va detras de todo
-    32..38 manzana, sierra, pinchos (delante y detras), piedra, portal (fondo y remolino)
-    39..   interfaz de Apple Worm (seleccion de nivel y de skins) y la vista previa de cada skin
+    32..39 manzana, sierra, pinchos (delante y detras), piedra (cara), portal (fondo y remolino), piedra (relieve)
+    40..   interfaz de Apple Worm (seleccion de nivel y de skins) y la vista previa de cada skin
 """
 import io
 import json
@@ -153,7 +153,8 @@ UI = ['window_lev_sel', 'btn_lev_norm', 'btn_lev_press', 'place_level', 'place_l
       'arrow_left_norm', 'arrow_right_norm', 'btn_back_norm', 'shop_window', 'skins_norm', 'corner_lev_skin',
       'icon_check', 'icon_coin_big', 'btn_green_norm', 'btn_gr_big_norm']
 ELEMENTS = ['objects/apple', 'objects/saw', 'objects/spikes_front', 'objects/spikes_back', 'objects/stone_all',
-            'portal/portal_bg', 'portal/portal_swirl']
+            'portal/portal_bg', 'portal/portal_swirl', 'objects/stone_back']
+SPINE_CELL = 256.0   # en el esqueleto de elementos una casilla mide 256 unidades (la manzana y los pinchos)
 CELL_PX = 314        # pixeles de una casilla en los graficos de Apple Worm (cara delantera de Block_1111f)
 
 
@@ -239,10 +240,36 @@ def export_assets(src, out):
     for n, ptr in zip(sa['m_PackedSpriteNamesToIndex'], sa['m_PackedSprites']):
         blocks[n] = resolve(sa_o.assets_file, ptr)
     # 'f': cara del bloque (delante del gusano); 'b': relieve de arriba y de la izquierda (detras de todo)
+    def widen(m):
+        """la cara de un bloque con vecino a la derecha o abajo sobresale 8 px (de 398) y tapa el borde claro del
+        vecino; reducida a la PSP quedaria en menos de un pixel semitransparente (lineas entre bloques): se alarga"""
+        def f(im):
+            im = im.convert('RGBA')
+            bb = im.getbbox()
+            if not bb:
+                return im
+            ext = 28
+            out = Image.new('RGBA', (im.width + ext, im.height + ext))
+            out.paste(im, (0, 0))
+            cx, cy = (bb[0] + bb[2]) // 2, (bb[1] + bb[3]) // 2
+            if m & 4:   # vecino a la derecha: textura del interior, tapando tambien el borde oscuro del sobrante
+                strip = im.crop((cx - ext // 2, bb[1], cx + ext // 2, bb[3]))
+                for x0 in range(bb[2] - 14, bb[2] + ext, ext):
+                    out.paste(strip, (x0, bb[1]), strip)
+            if m & 2:   # vecino abajo
+                strip = out.crop((bb[0], cy - ext // 2, out.width, cy + ext // 2))
+                for y0 in range(bb[3] - 14, bb[3] + ext, ext):
+                    out.paste(strip, (bb[0], y0), strip)
+            return out.crop((0, 0, im.width + (ext if m & 4 else 0), im.height + (ext if m & 2 else 0)))
+        return f
+
     for layer in ('f', 'b'):
         for m in range(16):
             o = blocks.get('Block_%s%s' % (format(m, '04b'), layer))
-            idx.append(sheet.add_unity(o) if o is not None else -1)
+            if o is None:
+                idx.append(-1)
+            else:
+                idx.append(sheet.add_unity(o, fix=widen(m) if layer == 'f' and m & 6 else None))
     # elementos (atlas de Spine de la skin Original)
     tex = get('packs/original/elements_export/skeleton', 'Texture2D').read().image.convert('RGBA')
     at = get('packs/original/elements_export/skeleton.atlas', 'TextAsset').read().m_Script
@@ -250,15 +277,31 @@ def export_assets(src, out):
     at_s = at.decode('utf8', 'replace') if isinstance(at, bytes) else at
     page_w = next((int(l.split(':', 1)[1].split(',')[0]) for l in at_s.splitlines() if l.startswith('size:')), tex.width)
     scale_k = tex.width / page_w   # misma reduccion que la textura
+    # tamano de cada elemento: el de su adjunto en el esqueleto (256 unidades = una casilla); la piedra mide 322x326,
+    # con el relieve que sobresale como el de los bloques
+    ejs = get('packs/original/elements_export/skeleton', 'TextAsset')
+    esize = {}
+    if ejs is not None:
+        raw = ejs.read().m_Script
+        raw = raw if isinstance(raw, bytes) else raw.encode('utf8', 'surrogateescape')
+        try:
+            ej = json.loads(raw)
+            for atts in ej['skins'][0]['attachments'].values():
+                for an, a in atts.items():
+                    if 'width' in a:
+                        esize[a.get('path', an)] = (a['width'] / SPINE_CELL, a['height'] / SPINE_CELL)
+        except Exception:
+            pass
     for n in ELEMENTS:
         if n not in reg:
             idx.append(-1)
             continue
         im = region_image(tex, reg[n])
         w, h = im.size
-        cpx = CELL_PX * scale_k     # pixeles de una casilla en la textura ya reducida
-        small = im.resize((max(1, int(w * ex.PX / cpx)), max(1, int(h * ex.PX / cpx))), Image.LANCZOS)
-        idx.append(sheet.add_image(small, -w / cpx / 2, -h / cpx / 2, w / cpx, h / cpx))
+        cpx = CELL_PX * scale_k
+        uw, uh = esize.get(n, (w / cpx, h / cpx))
+        small = im.resize((max(1, int(uw * ex.PX)), max(1, int(uh * ex.PX))), Image.LANCZOS)
+        idx.append(sheet.add_image(small, -uw / 2, -uh / 2, uw, uh))
     # fondo
     if 'bg/bg_classic' in reg:
         ex.write_bg(region_image(tex, reg['bg/bg_classic']), os.path.join(out, 'aw_bg.tex'))

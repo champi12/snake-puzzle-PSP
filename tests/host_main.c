@@ -195,12 +195,13 @@ int main(int argc, char **argv)
         frames(2, IN_RIGHT);
         shot("aw_skins");
         frames(2, IN_CIRCLE);
-        for (int lv = 0; lv < 2; lv++) {
+        static const int aw_lv[] = {1, 30, 11, 21, 47};
+        for (int lv = 0; lv < 5; lv++) {
             aw_mode = 1;
-            play_start(lv == 0 ? 0 : 29, 0);
+            play_start(aw_lv[lv] - 1, 0);
             frames(40, 0);
             char b[32];
-            snprintf(b, sizeof(b), "aw_nivel%d", lv == 0 ? 1 : 30);
+            snprintf(b, sizeof(b), "aw_nivel%d", aw_lv[lv]);
             shot(b);
         }
         /* tienda unica: bajar hasta los gusanos de Apple Worm y equipar uno; jugar con el */

@@ -574,6 +574,8 @@ static int aw_solid(int x, int y) { return x >= 0 && y >= 0 && x < G.w && y < G.
  * el personaje queda un poco por detras del borde del suelo, como en 3D) */
 static void aw_draw_tiles(int layer)
 {
+    /* de abajo arriba y de derecha a izquierda: la cara de un bloque con vecino a la derecha o abajo sobresale y tapa
+     * el borde claro de ese vecino, que ya esta dibujado */
     for (int y = 0; y < G.h; y++)
         for (int x = G.w - 1; x >= 0; x--) {
             if (!aw_solid(x, y)) continue;
@@ -607,11 +609,6 @@ static void aw_draw_objects(const GState *s, const GState *from, float t, int fr
         else if (o->type == O_SAW && !front)
             gfx_sprite_angle(&aw_sheet, aw_spr(AW_SAW), sx(o->x), sy(o->y), cs, saw_ang, WHITE);
     }
-    if (front) return;
-    for (int a = 0; a < G.napple; a++)
-        if (s->apple_alive[a])
-            gfx_sprite(&aw_sheet, aw_spr(AW_APPLE), sx(G.apple[a].x), sy(G.apple[a].y) + sinf(gtime * 3 + a) * cs * 0.03f,
-                       cs, 0, 0, WHITE);
     for (int i = 0; i < s->nstone; i++) {
         if (!s->st_alive[i]) continue;
         float fx = s->st[i].x, fy = s->st[i].y;
@@ -622,8 +619,15 @@ static void aw_draw_objects(const GState *s, const GState *from, float t, int fr
                 fy = from->st[i].y + dy * t;
             }
         }
-        gfx_sprite(&aw_sheet, aw_spr(AW_STONE), sx(fx), sy(fy), cs, 0, 0, WHITE);
+        /* piedra como los bloques: relieve (stone_back) detras y cara (stone_all) delante del gusano */
+        gfx_sprite(&aw_sheet, aw_spr(front ? AW_STONE : AW_STONE_B), sx(fx), sy(fy), cs, 0, 0, WHITE);
     }
+    if (front) return;
+    for (int a = 0; a < G.napple; a++)
+        if (s->apple_alive[a])
+            gfx_sprite(&aw_sheet, aw_spr(AW_APPLE), sx(G.apple[a].x), sy(G.apple[a].y) + sinf(gtime * 3 + a) * cs * 0.03f,
+                       cs, 0, 0, WHITE);
+
 }
 
 void play_draw(void)
