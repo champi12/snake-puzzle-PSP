@@ -111,6 +111,8 @@ command -v psp-gcc > /dev/null || { echo "No encuentro psp-gcc: exporta PSPDEV c
 rm -f dist/PSP/GAME/SNAKEPZL/data/.version
 
 DEST=$2
+# destino fijo de Joan: C:\Users\Joan jimenez\Desktop\PSP\GAME\SNAKEPZL
+[ -z "$DEST" ] && [ -d "/mnt/c/Users/Joan jimenez/Desktop" ] && DEST="/mnt/c/Users/Joan jimenez/Desktop"
 [ -z "$DEST" ] && DEST=$(desktops | head -1)
 if [ -n "$DEST" ]; then
     # no se crea la carpeta destino: si no existe es que la ruta esta mal escrita
