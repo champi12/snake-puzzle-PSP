@@ -132,6 +132,8 @@ void tex_free(Tex *t)
         gstat.ram_tex -= t->bytes;
         gstat.ram_tex_n--;
     }
+    if (t->own) sceGuSync(0, 0);   /* que el GE no siga leyendola */
+    free(t->own);
     memset(t, 0, sizeof(*t));
 }
 

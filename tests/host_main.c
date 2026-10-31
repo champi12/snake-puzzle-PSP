@@ -232,6 +232,21 @@ int main(int argc, char **argv)
         play_start(2, 0);
         frames(40, 0);
         shot("sp_nivel3_skin_aw");
+        /* inicio con varios gusanos de Apple Worm equipados (cabeza y cuerpo de la vista previa) */
+        for (int k = 0; k < 19; k += 6) {
+            sv.skin = AW_SKIN0 + k;
+            load_skin(sv.skin);
+            set_state(GS_HOME);
+            frames(2, 0);
+            char b3[32];
+            snprintf(b3, sizeof(b3), "inicio_aw_skin%02d", k);
+            shot(b3);
+            if (k == 6) {
+                ui_open_shop();
+                frames(2, 0);
+                shot("tienda_aw_skin06_equipado");
+            }
+        }
         sv.skin = 0;
         load_skin(0);
         aw_mode = 1;

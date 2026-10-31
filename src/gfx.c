@@ -110,7 +110,9 @@ int bg_load(Tex *t, const char *path)
     memmove(m, m + 12, size - 12);
     t->pixels = m;
     t->bytes = size - 12;
-    be_tex_upload(t);
+    /* si se copia a la VRAM, el bloque ya no hace falta; si no, la textura lo usa y tex_free lo libera */
+    if (be_tex_upload(t)) free(m);
+    else t->own = m;
     return 0;
 }
 

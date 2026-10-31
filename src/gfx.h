@@ -18,6 +18,7 @@ typedef struct {
     uint32_t *clut;         /* paleta (T8) */
     int in_vram;
     uint32_t bytes;
+    void *own;              /* bloque de memoria propio (fondos): se libera con tex_free */
 } Tex;
 
 typedef struct {

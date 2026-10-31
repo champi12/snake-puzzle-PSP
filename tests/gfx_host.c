@@ -14,7 +14,7 @@ void gfx_shutdown(void) {}
 uint32_t gfx_vram_mark(void) { return 0; }
 void gfx_vram_reset(uint32_t m) { (void)m; }
 int be_tex_upload(Tex *t) { gstat.ram_tex += t->bytes; gstat.ram_tex_n++; return 0; }
-void tex_free(Tex *t) { memset(t, 0, sizeof(*t)); }
+void tex_free(Tex *t) { free(t->own); memset(t, 0, sizeof(*t)); }
 
 void gfx_begin(uint32_t clear)
 {
