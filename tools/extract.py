@@ -610,6 +610,13 @@ def audio_pcm(o, rate_out=22050, mono=True):
     return mono
 
 
+AUDIO_HELP = '''
+ERROR: no se pudo convertir el sonido del juego (%s).
+Los sonidos de Unity (FSB5/Vorbis) necesitan las librerias libogg y libvorbis del sistema. En Ubuntu/WSL:
+    sudo apt install libogg0 libvorbis0a libvorbisfile3 libsndfile1
+y vuelve a ejecutar ./actualizar.sh'''
+
+
 def export_audio(G, out):
     clips = []
     for name in SFX:
@@ -621,9 +628,7 @@ def export_audio(G, out):
         try:
             pcm = audio_pcm(o)
         except Exception as e:
-            print('  aviso: no se pudo convertir %s (%s)' % (name, e))
-            clips.append(b'')
-            continue
+            raise SystemExit(AUDIO_HELP % ('%s: %s' % (name, e)))
         clips.append((np.clip(pcm, -1, 1) * 32000).astype('<i2').tobytes())
     head = b'SFX1' + struct.pack('<I', len(clips))
     off = 8 + 8 * len(clips)
@@ -653,7 +658,7 @@ def export_audio(G, out):
                 f.write(mp3)
             print('  musica %s: %.0f s, %d KB' % (fn, len(st) / 44100, len(mp3) // 1024))
         except Exception as e:
-            print('  aviso: no se pudo convertir %s (%s)' % (clip, e))
+            raise SystemExit(AUDIO_HELP % ('%s: %s' % (clip, e)))
     print('  %d efectos de sonido' % sum(1 for c in clips if c))
 
 

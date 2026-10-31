@@ -33,13 +33,14 @@ static volatile int run, sfx_on = 1, music_on = 1;
 static SceUID mix_th = -1, mus_th = -1, lock = -1;
 static char music_path[2][200];
 static volatile int music_want, music_cur = -1;
-static int mp3_ok;
+static int mp3_ok, sfx_valid;   /* efectos con sonido (0: sfx.bin generado sin libvorbis) */
 static char status[96] = "sin iniciar";
 static volatile int mix_ch = -1, mp3_state;   /* 0 nada, 1 sonando, -1 error */
 const char *audio_status(void)
 {
-    snprintf(status, sizeof(status), "Audio: efectos %s (%d) | musica %s", mix_ch >= 0 ? "OK" : "SIN CANAL",
-             (int)(sfx_blob != NULL), mp3_state > 0 ? "MP3 OK" : mp3_state < 0 ? "ERROR" : mp3_ok ? "esperando" : "sin MP3");
+    snprintf(status, sizeof(status), "Audio: efectos %s (%d) | musica %s",
+             mix_ch < 0 ? "SIN CANAL" : sfx_valid ? "OK" : "SIN DATOS (regenera data/)", sfx_valid,
+             mp3_state > 0 ? "MP3 OK" : mp3_state < 0 ? "ERROR" : mp3_ok ? "esperando" : "sin MP3");
     return status;
 }
 
@@ -200,8 +201,10 @@ int audio_init(const char *dir)
             for (int i = 0; i < cnt && i < SFX_COUNT; i++) {
                 sfx_data[i] = (short *)(b + rd32(b + 8 + i * 8));
                 sfx_len[i] = rd32(b + 12 + i * 8);
+                if (sfx_len[i] > 0) sfx_valid++;
             }
-            dlog("CARGA sfx.bin %6ld KB, %d efectos", n / 1024, cnt);
+            dlog("CARGA sfx.bin %6ld KB, %d efectos (%d con sonido)", n / 1024, cnt, sfx_valid);
+            if (!sfx_valid) dlog_error("sfx.bin no tiene sonidos: se genero sin libogg/libvorbis (ver actualizar.sh)");
         } else
             dlog_error("sfx.bin no valido");
         fclose(f);

@@ -47,6 +47,13 @@ EOF
 }
 
 echo "== 2/4 Python (entorno para el extractor) =="
+# los sonidos de Unity (FSB5/Vorbis) se convierten con libogg y libvorbis del sistema: sin ellas el juego sale mudo
+if ! ldconfig -p 2>/dev/null | grep -q 'libvorbis.so.0' || ! ldconfig -p 2>/dev/null | grep -q 'libogg.so.0' \
+   || ! ldconfig -p 2>/dev/null | grep -q 'libsndfile.so.1'; then
+    echo "Faltan las librerias de sonido (libogg, libvorbis, libsndfile): se instalan (pide tu contrasena de Ubuntu)"
+    sudo apt-get update -qq && sudo apt-get install -y libogg0 libvorbis0a libvorbisfile3 libsndfile1 \
+        || { echo "No se pudieron instalar. Ejecuta: sudo apt install libogg0 libvorbis0a libvorbisfile3 libsndfile1"; exit 1; }
+fi
 VENV=$HOME/venv-snake
 if [ ! -x "$VENV/bin/python3" ]; then
     echo "Creando $VENV (solo la primera vez)..."
@@ -89,6 +96,11 @@ if [ -z "$GAME" ]; then
     fi
 fi
 VER=$(cat tools/extract.py tools/levels.py tools/unityload.py | sha1sum | cut -c1-16)
+# data/ sin sonido (generada sin libvorbis): se rehace
+SFX_SIZE=$(stat -c %s data/sfx.bin 2>/dev/null || echo 0)
+if [ "$SFX_SIZE" -lt 10000 ] || [ ! -f data/music.mp3 ]; then
+    rm -f data/.version
+fi
 if [ -f data/.version ] && [ "$(cat data/.version)" = "$VER" ]; then
     echo "data/ esta al dia (el extractor no ha cambiado)"
 else
