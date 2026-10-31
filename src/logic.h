@@ -9,9 +9,9 @@
 #include <stdint.h>
 #include "level.h"
 
-#define MAX_SNAKE 160
+#define MAX_SNAKE 256
 #define MAX_STONE 32
-#define MAX_APPLE 48
+#define MAX_APPLE 240
 #define MAX_GATE 16
 #define MAX_BAR 8
 
@@ -29,7 +29,7 @@ typedef struct {
     uint8_t st_alive[MAX_STONE];
     uint8_t apple_alive[MAX_APPLE];
     uint8_t bar_len[MAX_BAR];  /* largo actual del haz de cada barrera */
-    uint8_t tele;              /* SnakeController.indexMainLoop: partes que ya han salido del portal (sin caida
+    uint16_t tele;             /* SnakeController.indexMainLoop: partes que ya han salido del portal (sin caida
                                   mientras no hayan salido todas) */
     uint8_t dead;              /* 0, DEAD_TRAP, DEAD_FALL */
     uint8_t win;

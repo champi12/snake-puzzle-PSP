@@ -129,7 +129,7 @@ void logic_load(GLevel *g, GState *s, const Level *L)
     else if (L->flags & SF_UP) { dir = D_DOWN; ox = 0; oy = 1; }
     else if (L->flags & SF_LEFT) { dir = D_LEFT; ox = 1; oy = 0; }
     s->n = 1;
-    s->tele = 255;
+    s->tele = 0xffff;
     s->s[0] = (Cell){L->sx, L->sy};
     s->dir = dir;
     s->last_in = dir;

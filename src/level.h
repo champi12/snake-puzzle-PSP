@@ -9,7 +9,7 @@
 
 #define LV_MAXW 64
 #define LV_MAXH 64
-#define LV_MAXOBJ 96
+#define LV_MAXOBJ 256   /* el nivel 178 tiene 216 manzanas */
 #define LV_MAXTILES 1200
 #define LV_MAXHINT 256
 
