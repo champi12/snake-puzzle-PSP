@@ -73,7 +73,7 @@ def _key(tl, t, default):
     return v
 
 
-def pose(skel, anim=None, t=None, extra_anims=()):
+def pose(skel, anim=None, t=None, extra_anims=(), attach=None):
     """devuelve [(imagen-region, matriz mundo 2x3)] en orden de dibujo"""
     bones = {b['name']: dict(b) for b in skel['bones']}
     slots = [dict(s) for s in skel['slots']]
@@ -111,6 +111,10 @@ def pose(skel, anim=None, t=None, extra_anims=()):
                     k = _key(tls['rgba'], tt, None)
                     if k is not None:
                         s['color'] = k.get('color', 'ffffffff')
+    # adjuntos forzados (p. ej. los parpados cerrados sin el resto de la animacion)
+    for s in slots:
+        if attach and s['name'] in attach:
+            s['attachment'] = attach[s['name']]
     # orden de dibujo (drawOrder): desplazamientos sobre el orden de los slots
     order = list(range(len(slots)))
     for a in ([anim] if anim else []) + list(extra_anims):
@@ -200,9 +204,9 @@ def pose(skel, anim=None, t=None, extra_anims=()):
     return out
 
 
-def render(skel, regions, anim=None, t=None, box=None, px=128, extra_anims=()):
+def render(skel, regions, anim=None, t=None, box=None, px=128, extra_anims=(), attach=None):
     """pinta la pose en una imagen de px x px; box = (x0, y0, x1, y1) en unidades de Spine (y hacia arriba)"""
-    items = pose(skel, anim, t, extra_anims)
+    items = pose(skel, anim, t, extra_anims, attach)
     if box is None:
         xs, ys = [], []
         for it in items:

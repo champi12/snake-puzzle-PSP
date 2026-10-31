@@ -343,7 +343,7 @@ def export_worm_skins(get, skins, out, apple_img):
         hu = 384 / 256.0                      # tamano de la imagen de la cabeza en casillas
         head_sq, _ = sr.render(wsk, wreg, 'head_dark_static', None, box=hbox, px=round(40 * hu))
 
-        def face(anim, frac):
+        def face(anim, frac, attach=None):
             dur = 0
             for tls in fsk['animations'].get(anim, {}).get('slots', {}).values():
                 for tl in tls.values():
@@ -351,13 +351,36 @@ def export_worm_skins(get, skins, out, apple_img):
             for tls in fsk['animations'].get(anim, {}).get('bones', {}).values():
                 for tl in tls.values():
                     dur = max([dur] + [x.get('time', 0) for x in tl])
-            im, _ = sr.render(fsk, freg, anim, dur * frac, box=hbox, px=round(40 * hu))
+            im, _ = sr.render(fsk, freg, anim, dur * frac, box=hbox, px=round(40 * hu), attach=attach)
             base = head_sq.copy()
             base.alpha_composite(im)
             return base
-        # reposo y "parpadeo" con la cara quieta: la animacion idle_1 de Apple Worm mueve la cara entera
+        # reposo con la cara quieta (la animacion idle_1 de Apple Worm mueve la cara entera) y parpadeo solo con
+        # los parpados cerrados de idle_1 (slots veko_Zakritiy) sobre la pose quieta
         still = face('static', 0)
-        frames = ([still] * 3 + [still] * 5 +
+        lids = {sl['name']: 'veko_Zakritiy' for sl in fsk['slots'] if sl['name'].lower().startswith('veko_zakritiy')}
+        closed = still
+        idle = fsk['animations'].get('idle_1', {})
+        if lids and idle:
+            # pose quieta + solo los huesos y adjuntos de los parpados cerrados de idle_1, en el instante del parpadeo
+            import copy
+            blink = copy.deepcopy(fsk['animations']['static'])
+            for bn, tl in idle.get('bones', {}).items():
+                if bn.lower().startswith('veko_zakritiy'):
+                    blink.setdefault('bones', {})[bn] = tl
+            t_closed = None
+            for sn, tl in idle.get('slots', {}).items():
+                if sn in lids:
+                    blink.setdefault('slots', {})[sn] = tl
+                    for key in tl.get('attachment', []):
+                        if key.get('name') and t_closed is None:
+                            t_closed = key.get('time', 0)
+            fsk['animations']['__blink__'] = blink
+            im, _ = sr.render(fsk, freg, '__blink__', t_closed or 0, box=hbox, px=round(40 * hu))
+            closed = head_sq.copy()
+            closed.alpha_composite(im)
+        # el resto de skins no parpadea en el original: se quedan con la cara quieta
+        frames = ([still] * 3 + [still, closed, closed, still, still] +
                   [face('eating', f / 9) for f in range(10)] + [face('near_apple_start', f / 4) for f in range(5)] +
                   [face('near_wall_start', f / 3) for f in range(4)] + [face('dead', 1)])
         for im in frames:
