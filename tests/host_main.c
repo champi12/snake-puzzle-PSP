@@ -211,9 +211,6 @@ int main(int argc, char **argv)
         for (int k = 0; k < 6; k++) frames(2, IN_DOWN);
         frames(2, IN_RIGHT);
         shot("tienda_aw_equipado");
-        frames(2, IN_RIGHT);
-        frames(2, IN_RIGHT);
-        shot("tienda_vista_previa_otro");
         /* nivel 3 de Snake Puzzle: comer y girar en todas direcciones con un gusano de Apple Worm */
         for (int k = 1; k <= 12; k += 4) {
             aw_mode = 0;

@@ -13,7 +13,6 @@ void gfx_init(void) { gstat.vram_fb = 2 * 512 * SCR_H * 2; gstat.dlist_max = 256
 void gfx_shutdown(void) {}
 uint32_t gfx_vram_mark(void) { return 0; }
 void gfx_vram_reset(uint32_t m) { (void)m; }
-int gfx_vram_off;
 int be_tex_upload(Tex *t) { gstat.ram_tex += t->bytes; gstat.ram_tex_n++; return 0; }
 void tex_free(Tex *t) { memset(t, 0, sizeof(*t)); }
 
