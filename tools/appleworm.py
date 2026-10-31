@@ -10,8 +10,9 @@ steps: la solucion oficial con el mismo enum de direcciones que Snake Puzzle (0 
 Graficos (data/aw/aw.spr + aw.idx, orden fijo de src/aw.h):
     0..15  bloques de suelo de la skin Original, Block_<arriba><derecha><abajo><izquierda>f (1 = hay vecino): la cara
     16..31 los mismos en 'b': el relieve de arriba y de la izquierda, que va detras de todo
-    32..39 manzana, sierra, pinchos (delante y detras), piedra (cara), portal (fondo y remolino), piedra (relieve)
-    40..   interfaz de Apple Worm (seleccion de nivel y de skins) y la vista previa de cada skin
+    32..41 manzana, sierra, pinchos (delante y detras), piedra (cara), portal (fondo y remolino), piedra (relieve de
+           la izquierda, esquina y franja de arriba)
+    42..   interfaz de Apple Worm (seleccion de nivel y de skins) y la vista previa de cada skin
 """
 import io
 import json
@@ -153,7 +154,7 @@ UI = ['window_lev_sel', 'btn_lev_norm', 'btn_lev_press', 'place_level', 'place_l
       'arrow_left_norm', 'arrow_right_norm', 'btn_back_norm', 'shop_window', 'skins_norm', 'corner_lev_skin',
       'icon_check', 'icon_coin_big', 'btn_green_norm', 'btn_gr_big_norm']
 ELEMENTS = ['objects/apple', 'objects/saw', 'objects/spikes_front', 'objects/spikes_back', 'objects/stone_all',
-            'portal/portal_bg', 'portal/portal_swirl', 'objects/stone_back']
+            'portal/portal_bg', 'portal/portal_swirl', 'objects/stone_back', 'objects/stone_up_1', 'objects/stone_up_2']
 SPINE_CELL = 256.0   # en el esqueleto de elementos una casilla mide 256 unidades (la manzana y los pinchos)
 CELL_PX = 314        # pixeles de una casilla en los graficos de Apple Worm (cara delantera de Block_1111f)
 

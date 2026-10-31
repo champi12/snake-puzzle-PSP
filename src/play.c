@@ -619,8 +619,14 @@ static void aw_draw_objects(const GState *s, const GState *from, float t, int fr
                 fy = from->st[i].y + dy * t;
             }
         }
-        /* piedra como los bloques: relieve (stone_back) detras y cara (stone_all) delante del gusano */
-        gfx_sprite(&aw_sheet, aw_spr(front ? AW_STONE : AW_STONE_B), sx(fx), sy(fy), cs, 0, 0, WHITE);
+        /* piedra como los bloques: relieve (stone_back y la parte de arriba, stone_up_1 y 2) detras y cara
+         * (stone_all) delante del gusano */
+        if (front) gfx_sprite(&aw_sheet, aw_spr(AW_STONE), sx(fx), sy(fy), cs, 0, 0, WHITE);
+        else {
+            gfx_sprite(&aw_sheet, aw_spr(AW_STONE_B), sx(fx), sy(fy), cs, 0, 0, WHITE);
+            gfx_sprite(&aw_sheet, aw_spr(AW_STONE_UP1), sx(fx), sy(fy), cs, 0, 0, WHITE);
+            gfx_sprite(&aw_sheet, aw_spr(AW_STONE_UP2), sx(fx), sy(fy), cs, 0, 0, WHITE);
+        }
     }
     if (front) return;
     for (int a = 0; a < G.napple; a++)
