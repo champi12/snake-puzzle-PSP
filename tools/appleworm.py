@@ -326,14 +326,14 @@ def export_worm_skins(get, skins, out, apple_img):
         def piece(anim):
             im, _ = sr.render(wsk, wreg, anim, None, box=cell, px=ex.PX)
             return im
+        # misma estructura que las piezas de Snake Puzzle (src/skin.h), para usar la misma tabla de giros
+        # (UpdateVisuals). En las animaciones 'x_to_y' el color final es el segundo: la pieza clara es *_to_light.
+        # C une derecha y abajo (esquina interior), O une arriba e izquierda (esquina exterior, tal cual), la cola une
+        # a la derecha y V es la recta girada (sombra a la derecha)
         h1, h2 = piece('line_light_appear'), piece('line_dark_appear')
-        c1, c2 = piece('corner_inner_light_to_dark'), piece('corner_inner_dark_to_light')
-        # misma orientacion que las piezas de Snake Puzzle (src/skin.h), para usar la misma tabla de giros
-        # (UpdateVisuals): C une derecha y abajo (esquina interior tal cual), O une arriba e izquierda (la exterior,
-        # que une izquierda y abajo, con espejo vertical); V es la recta girada con la sombra a la derecha
-        o1 = piece('corner_outer_light_to_dark').transpose(Image.FLIP_TOP_BOTTOM)
-        o2 = piece('corner_outer_dark_to_light').transpose(Image.FLIP_TOP_BOTTOM)
-        t1, t2 = piece('tail_light_to_dark'), piece('tail_dark_to_light')
+        c1, c2 = piece('corner_inner_dark_to_light'), piece('corner_inner_light_to_dark')
+        o1, o2 = piece('corner_outer_dark_to_light'), piece('corner_outer_light_to_dark')
+        t1, t2 = piece('tail_dark_to_light'), piece('tail_light_to_dark')
         sh = ex.SpriteSheet(ex.FMT_T8, 512, 256)
         for im in (h1, h1.rotate(90), c1, t1, h2, h2.rotate(90), c2, t2, o1, o2):
             sh.add_image(im, -0.5, -0.5, 1.0, 1.0)

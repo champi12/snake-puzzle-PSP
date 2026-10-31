@@ -6,6 +6,8 @@ adjunto, giro, posicion, escala y orden de una animacion en un instante. Los adj
 """
 import math
 
+ROT_SIGN = -1  # 'rotate: true' en el atlas: la region esta guardada girada; se endereza en sentido horario
+
 from PIL import Image
 
 
@@ -44,7 +46,7 @@ def parse_atlas(text, tex):
         bw, bh = (h, w) if rot else (w, h)
         im = tex.crop((round(x * sc), round(y * sc), round((x + bw) * sc), round((y + bh) * sc)))
         if rot:
-            im = im.rotate(90, expand=True)
+            im = im.rotate(ROT_SIGN * 90, expand=True)
         im = im.resize((max(1, w), max(1, h)), Image.LANCZOS)
         full = Image.new('RGBA', (ow, oh))
         full.paste(im, (ox, oh - h - oy))    # offset de Spine: desde abajo a la izquierda
@@ -164,6 +166,32 @@ def pose(skel, anim=None, t=None, extra_anims=()):
             pts = [(m[0] * v[i] + m[1] * v[i + 1] + m[2], m[3] * v[i] + m[4] * v[i + 1] + m[5]) for i in range(0, len(v), 2)]
             out.append(('__clip__', pts, a.get('end'), s['name'], 1.0))
             continue
+        if a.get('type') == 'mesh':
+            # malla (el pelo y la oreja de la oveja...): vertices en el mundo, con pesos de huesos o sin ellos
+            uvs, v, nuv = a['uvs'], a['vertices'], len(a['uvs']) // 2
+            pts = []
+            if len(v) == len(uvs):
+                m = wm(s['bone'])
+                pts = [(m[0] * v[i] + m[1] * v[i + 1] + m[2], m[3] * v[i] + m[4] * v[i + 1] + m[5])
+                       for i in range(0, len(v), 2)]
+            else:
+                i = 0
+                bnames = [b['name'] for b in skel['bones']]
+                while i < len(v) and len(pts) < nuv:
+                    nb = int(v[i])
+                    i += 1
+                    wx = wy = 0.0
+                    for _ in range(nb):
+                        bm = wm(bnames[int(v[i])])
+                        x, y, w = v[i + 1], v[i + 2], v[i + 3]
+                        wx += (bm[0] * x + bm[1] * y + bm[2]) * w
+                        wy += (bm[3] * x + bm[4] * y + bm[5]) * w
+                        i += 4
+                    pts.append((wx, wy))
+            alpha = int(s.get('color', 'ffffffff')[6:8], 16) / 255.0 if len(s.get('color', '')) >= 8 else 1.0
+            out.append(('__mesh__', a.get('path', an), pts, [(uvs[k], uvs[k + 1]) for k in range(0, len(uvs), 2)],
+                        a['triangles'], alpha, s['name']))
+            continue
         if a.get('type', 'region') != 'region':
             continue
         alpha = int(s.get('color', 'ffffffff')[6:8], 16) / 255.0 if len(s.get('color', '')) >= 8 else 1.0
@@ -179,6 +207,10 @@ def render(skel, regions, anim=None, t=None, box=None, px=128, extra_anims=()):
         xs, ys = [], []
         for it in items:
             if it[0] == '__clip__':
+                continue
+            if it[0] == '__mesh__':
+                xs += [p[0] for p in it[2]]
+                ys += [p[1] for p in it[2]]
                 continue
             _, m, w, h = it[:4]
             for cx, cy in ((-w / 2, -h / 2), (w / 2, -h / 2), (-w / 2, h / 2), (w / 2, h / 2)):
@@ -197,6 +229,40 @@ def render(skel, regions, anim=None, t=None, box=None, px=128, extra_anims=()):
             mk = Image.new('L', (W, H), 0)
             ImageDraw.Draw(mk).polygon(pts, fill=255)
             clip = (mk, it[2])
+            continue
+        if it[0] == '__mesh__':
+            _, name, pts, uvs, tris, alpha, slot = it
+            im = regions.get(name)
+            if im is not None and pts:
+                iw, ih = im.size
+                layer = Image.new('RGBA', (W, H))
+                for t in range(0, len(tris), 3):
+                    a_, b_, c_ = tris[t], tris[t + 1], tris[t + 2]
+                    if max(a_, b_, c_) >= len(pts):
+                        continue
+                    dst = [((pts[q][0] - x0) * k, (y1 - pts[q][1]) * k) for q in (a_, b_, c_)]
+                    src = [(uvs[q][0] * iw, uvs[q][1] * ih) for q in (a_, b_, c_)]
+                    # afin destino -> origen del triangulo
+                    (X1, Y1), (X2, Y2), (X3, Y3) = dst
+                    den = (X2 - X1) * (Y3 - Y1) - (X3 - X1) * (Y2 - Y1)
+                    if abs(den) < 1e-9:
+                        continue
+                    (u1, v1), (u2, v2), (u3, v3) = src
+                    a0 = ((u2 - u1) * (Y3 - Y1) - (u3 - u1) * (Y2 - Y1)) / den
+                    a1 = ((u3 - u1) * (X2 - X1) - (u2 - u1) * (X3 - X1)) / den
+                    b0 = ((v2 - v1) * (Y3 - Y1) - (v3 - v1) * (Y2 - Y1)) / den
+                    b1 = ((v3 - v1) * (X2 - X1) - (v2 - v1) * (X3 - X1)) / den
+                    tri = im.transform((W, H), Image.AFFINE, (a0, a1, u1 - a0 * X1 - a1 * Y1, b0, b1, v1 - b0 * X1 - b1 * Y1),
+                                       resample=Image.BILINEAR)
+                    mk = Image.new('L', (W, H), 0)
+                    ImageDraw.Draw(mk).polygon(dst, fill=255)
+                    layer.paste(tri, (0, 0), ImageChops.multiply(tri.split()[3], mk))
+                if clip:
+                    r, g, b, al = layer.split()
+                    layer = Image.merge('RGBA', (r, g, b, ImageChops.multiply(al, clip[0])))
+                canvas.alpha_composite(layer)
+            if clip and slot == clip[1]:
+                clip = None
             continue
         name, m, w, h, alpha, slot = it
         im = regions.get(name)

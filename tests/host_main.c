@@ -205,14 +205,14 @@ int main(int argc, char **argv)
         ui_open_shop();
         for (int k = 0; k < 7; k++) frames(2, IN_DOWN);
         shot("tienda_aw_skins");
-        sv.skin = AW_SKIN0 + 1;
+        sv.skin = AW_SKIN0 + 0;
         load_skin(sv.skin);
         ui_open_shop();
         for (int k = 0; k < 6; k++) frames(2, IN_DOWN);
         frames(2, IN_RIGHT);
         shot("tienda_aw_equipado");
         /* nivel 3 de Snake Puzzle: comer y girar en todas direcciones con un gusano de Apple Worm */
-        for (int k = 1; k <= 12; k += 4) {
+        for (int k = 1; k <= 12; k += 1) {
             aw_mode = 0;
             for (int i = 0; i < levels.count; i++) {
                 Level L;
@@ -254,6 +254,32 @@ int main(int argc, char **argv)
         frames(200, 0);
         shot("aw_superado");
         aw_mode = 0;
+    }
+    /* zigzag con todos los giros, piezas grandes: Snake Puzzle (skin 0) y Apple Worm (skin 100) */
+    {
+        static const int8_t path[][2] = {{6, 4}, {5, 4}, {4, 4}, {4, 3}, {4, 2}, {5, 2}, {6, 2}, {6, 1}, {6, 0}, {5, 0},
+                                         {4, 0}, {3, 0}, {2, 0}, {2, 1}, {2, 2}, {1, 2}, {0, 2}, {0, 3}, {0, 4}, {1, 4}};
+        int skins_t[2] = {0, AW_SKIN0};
+        for (int k = 0; k < 2; k++) {
+            if (skins_t[k] >= AW_SKIN0 && !nskins_aw) continue;
+            load_skin(skins_t[k]);
+            static GState zs;
+            memset(&zs, 0, sizeof(zs));
+            zs.n = 20;
+            zs.dir = D_LEFT;
+            float xs[20], ys[20];
+            for (int i = 0; i < 20; i++) {
+                zs.s[i] = (Cell){path[i][0], path[i][1]};
+                xs[i] = 60 + path[i][0] * 50;
+                ys[i] = 240 - path[i][1] * 50;
+            }
+            gfx_begin(RGBA(90, 140, 200, 255));
+            draw_snake_screen(&zs, xs, ys, 50);
+            char p2[64];
+            snprintf(p2, sizeof(p2), "out/%02d_zigzag_%s.ppm", shot_n++, k ? "aw" : "sp");
+            host_shot(p2);
+        }
+        load_skin(0);
     }
     classic_start();
     frames(2, IN_UP);
