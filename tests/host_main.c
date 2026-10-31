@@ -106,7 +106,7 @@ int main(int argc, char **argv)
     for (int i = 0; i < levels.count; i++) {
         Level L;
         level_get(&levels, i, &L);
-        if (L.num == 30 || L.num == 26 || L.num == 211 || L.num == 241 || L.num == 151 || L.num == 3 || L.num == 1) {
+        if (L.num == 30 || L.num == 26 || L.num == 20 || L.num == 102 || L.num == 230 || L.num == 211 || L.num == 241 || L.num == 151 || L.num == 3 || L.num == 1) {
             play_start(i, 0);
             frames(40, 0);
             char b[32];

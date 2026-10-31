@@ -436,12 +436,50 @@ static void draw_snake_enter(const GState *s, float u)
     }
 }
 
-static void draw_tiles(void)
+/* front 0: capas de atras (Border, orden -10); 1: suelo y paredes (orden 10) */
+static void draw_tiles(int front)
 {
     for (int i = 0; i < cur_level.ntiles; i++) {
         const LvTile *t = &cur_level.tiles[i];
+        if (!!(t->flags & 8) != front) continue;
         gfx_sprite(&world, t->spr, sx(t->x), sy(t->y), cs, (t->flags & 4) ? 1 : 0, t->flags & 1, WHITE);
     }
+}
+
+/* Piedra: cinco SpriteRenderer (Stone.listSprite). Stone_0 es el cubo (orden 8, por delante de la serpiente);
+ * Stone_H1/V1 (orden -1) y Stone_H2/V2 (orden -2) son los bordes de relieve, por detras del suelo y de otras
+ * piedras: con dos piedras juntas o apiladas el cubo de una tapa los bordes de la otra.
+ * part 0: bordes; part 1: cubos */
+#define STONE_SCALE 0.9f
+static void draw_stones(const GState *s, const GState *from, float t, int part)
+{
+    int cube = WSPR(W_STONE_LIST + 0);
+    for (int pass = 0; pass < (part ? 1 : 2); pass++)
+        for (int i = 0; i < s->nstone; i++) {
+            if (!s->st_alive[i]) continue;
+            float fx = s->st[i].x, fy = s->st[i].y;
+            if (i < from->nstone && from->st_alive[i]) {
+                float dx = fx - from->st[i].x, dy = fy - from->st[i].y;
+                if (fabsf(dx) + fabsf(dy) <= 1.01f) {
+                    fx = from->st[i].x + dx * t;
+                    fy = from->st[i].y + dy * t;
+                }
+            }
+            /* CubeRenderer va (-0,02; -0,07) respecto a la caja de la piedra */
+            float x = sx(fx) - 0.02f * cs, y = sy(fy) + 0.07f * cs;
+            if (cube < 0) {   /* datos viejos sin las piezas: la piedra entera */
+                if (part) gfx_sprite(&world, WSPR(W_STONE), sx(fx), sy(fy), cs, 0, 0, WHITE);
+                continue;
+            }
+            if (part) gfx_sprite(&world, cube, x, y, cs * STONE_SCALE, 0, 0, WHITE);
+            else if (pass == 0) {   /* orden -2 */
+                gfx_sprite(&world, WSPR(W_STONE_LIST + 2), x, y, cs * STONE_SCALE, 0, 0, WHITE);
+                gfx_sprite(&world, WSPR(W_STONE_LIST + 4), x, y, cs * STONE_SCALE, 0, 0, WHITE);
+            } else {                /* orden -1 */
+                gfx_sprite(&world, WSPR(W_STONE_LIST + 1), x, y, cs * STONE_SCALE, 0, 0, WHITE);
+                gfx_sprite(&world, WSPR(W_STONE_LIST + 3), x, y, cs * STONE_SCALE, 0, 0, WHITE);
+            }
+        }
 }
 
 static void draw_objects(const GState *s, const GState *from, float t)
@@ -490,19 +528,6 @@ static void draw_objects(const GState *s, const GState *from, float t)
         else gfx_sprite(&world, WSPR(W_APPLE), x, y, cs * 0.9f, 0, 0, WHITE);
         if (G.apple_double[a]) text_draw(x + cs * 0.15f, y - cs * 0.1f, FONT_S, "x2", WHITE, 0);
     }
-    /* piedras */
-    for (int i = 0; i < s->nstone; i++) {
-        if (!s->st_alive[i]) continue;
-        float fx = s->st[i].x, fy = s->st[i].y;
-        if (i < from->nstone && from->st_alive[i]) {
-            float dx = fx - from->st[i].x, dy = fy - from->st[i].y;
-            if (fabsf(dx) + fabsf(dy) <= 1.01f) {
-                fx = from->st[i].x + dx * t;
-                fy = from->st[i].y + dy * t;
-            }
-        }
-        gfx_sprite(&world, WSPR(W_STONE), sx(fx), sy(fy), cs, 0, 0, WHITE);
-    }
     /* meta (PortalRotate) */
     gfx_sprite_angle(&world, WSPR(W_GOAL), sx(G.gx), sy(G.gy), cs, goal_ang, WHITE);
     dbg_sect_ms[2] += (plat_us() - t0) / 1000.0f;
@@ -513,13 +538,17 @@ void play_draw(void)
     unsigned t0 = plat_us();
     gfx_bg(&bg_tex, WHITE);
     unsigned t1 = plat_us();
-    draw_tiles();
+    const GState *to = animating() ? &steps.step[step_i].st : &S;
+    float t = animating() ? step_t : 1;
+    /* orden de dibujo del original (sortingOrder): Border -10, bordes de piedra -2/-1, suelo 10; los objetos y la
+     * serpiente encima del suelo para que no los corte el relieve de las casillas */
+    draw_tiles(0);
+    draw_stones(to, &shown_from, t, 0);
+    draw_tiles(1);
     unsigned t2 = plat_us();
     dbg_sect_ms[0] = (t1 - t0) / 1000.0f;
     dbg_sect_ms[1] = (t2 - t1) / 1000.0f;
     dbg_sect_ms[2] = 0;
-    const GState *to = animating() ? &steps.step[step_i].st : &S;
-    float t = animating() ? step_t : 1;
     draw_objects(to, &shown_from, t);
     unsigned t3 = plat_us();
     if (S.win && !animating()) {
@@ -529,6 +558,7 @@ void play_draw(void)
         gfx_sprite_angle(&world, WSPR(W_GOAL), sx(G.gx), sy(G.gy), cs * grow, goal_ang + win_t * win_t * 6, WHITE);
     } else
         draw_snake(&shown_from, to, t, 0);
+    draw_stones(to, &shown_from, t, 1);   /* Stone_0 (orden 8) por delante de la serpiente (4) */
     /* portales: parte de delante (tapa la serpiente al entrar) */
     for (int g = 0; g < G.ngate; g++)
         gfx_sprite(&world, WSPR(W_PORTAL_FRONT), sx(G.gate[g].x), sy(G.gate[g].y), cs, rot_of(G.gate_dir[g]), 0, WHITE);

@@ -362,7 +362,17 @@ def object_sprites(G, world):
                 if key not in want:
                     want[key] = G.resolve(g['obj'].assets_file, r['m_Sprite'])
             if 'Stone' in g['mb'] and 'stone_list' not in want:
-                want['stone_list'] = [G.resolve(g['obj'].assets_file, p) for p in g['mb']['Stone']['listSprite']]
+                # Stone.listSprite son los SpriteRenderer Stone_0, Stone_H1, Stone_H2, Stone_V1 y Stone_V2: la piedra
+                # se dibuja con las cinco piezas (cubo delante con orden 8; bordes detras con orden -1 y -2)
+                lst = {}
+                for p in g['mb']['Stone']['listSprite']:
+                    r = G.resolve(g['obj'].assets_file, p)
+                    if r is None:
+                        continue
+                    rt = r.read_typetree()
+                    nm = G.resolve(r.assets_file, rt['m_GameObject']).read_typetree()['m_Name']
+                    lst[nm] = G.resolve(r.assets_file, rt['m_Sprite'])
+                want['stone_list'] = [lst.get(n) for n in ('Stone_0', 'Stone_H1', 'Stone_H2', 'Stone_V1', 'Stone_V2')]
             for c in g['children']:
                 walk(c)
         walk(root)
@@ -378,7 +388,10 @@ def object_sprites(G, world):
         else:
             print('  aviso: falta el sprite', key)
             ids[key] = -1
-    ids['stone_list'] = [world.add_unity(o) for o in want.get('stone_list', []) if o is not None and o.type.name == 'Sprite']
+    ids['stone_list'] = [world.add_unity(o) if o is not None and o.type.name == 'Sprite' else -1
+                         for o in want.get('stone_list', [])]
+    if -1 in ids['stone_list'] or not ids['stone_list']:
+        print('  aviso: faltan piezas de la piedra', ids['stone_list'])
     return ids
 
 
