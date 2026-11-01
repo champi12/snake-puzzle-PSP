@@ -24,7 +24,6 @@ void save_defaults(void)
     sv.skins_owned = 1;            /* aspecto 0 (ShopItem Id 0, State 2) */
     sv.bgs_owned = 1;
     sv.sound = sv.music = 1;
-    sv.aw_skins_owned = 1;         /* skin Original de Apple Worm */
 }
 
 static char save_path[200], tmp_path[200];
@@ -42,16 +41,15 @@ int save_load(void)
     if (!f) return -1;
     Save tmp;
     memset(&tmp, 0, sizeof(tmp));
-    /* una partida de antes de Apple Worm es mas corta: lo que falta queda a cero */
+    /* una partida guardada con el apartado de Apple Worm es mas larga: se lee lo comun y el resto se ignora */
     size_t n = fread(&tmp, 1, sizeof(tmp), f);
-    int ok = n >= offsetof(Save, aw_cur) && tmp.magic == SAVE_MAGIC && tmp.version == SAVE_VERSION;
+    int ok = n == sizeof(tmp) && tmp.magic == SAVE_MAGIC && tmp.version == SAVE_VERSION;
     fclose(f);
     if (!ok) {
         dlog("AVISO save.dat no valido: se empieza de cero");
         return -2;
     }
     sv = tmp;
-    sv.aw_skins_owned |= 1;        /* la skin Original de Apple Worm siempre (tambien en partidas de antes) */
     return 0;
 }
 

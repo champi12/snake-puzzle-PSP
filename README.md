@@ -130,4 +130,3 @@ ademas `exhandler.prx` y `exloader.prx`. Funciona en firmware personalizado (CFW
 
 * Probarlo en una PSP real y en PPSSPP (todavia no se ha ejecutado en ninguno de los dos).
 * Los 19 niveles cuya solucion oficial no coincide todavia con las reglas del port.
-* Anadir la campana del **Apple Worm** original (135 niveles de `levels.json`) como contenido extra.

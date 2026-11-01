@@ -11,7 +11,6 @@
 #include "../src/audio.h"
 #include "../src/devlog.h"
 #include "../src/lang.h"
-#include "../src/aw.h"
 
 /* lo que en la PSP pone devlog.c */
 MemInfo dbg_mem;
@@ -186,111 +185,15 @@ int main(int argc, char **argv)
     shot("diario_cobrado");
     set_state(GS_SETTINGS);
     shot("ajustes");
-    /* Apple Worm: seleccion de nivel, skins y un par de niveles */
-    if (aw_available()) {
-        aw_enter();
-        frames(2, 0);
-        shot("aw_niveles");
-        frames(2, IN_TRIANGLE);
-        frames(2, IN_RIGHT);
-        shot("aw_skins");
-        frames(2, IN_CIRCLE);
-        static const int aw_lv[] = {1, 30, 11, 21, 47};
-        for (int lv = 0; lv < 5; lv++) {
-            aw_mode = 1;
-            play_start(aw_lv[lv] - 1, 0);
-            frames(40, 0);
-            char b[32];
-            snprintf(b, sizeof(b), "aw_nivel%d", aw_lv[lv]);
-            shot(b);
-        }
-        /* tienda unica: bajar hasta los gusanos de Apple Worm y equipar uno; jugar con el */
-        ui_open_shop();
-        for (int k = 0; k < 7; k++) frames(2, IN_DOWN);
-        shot("tienda_aw_skins");
-        sv.skin = AW_SKIN0 + 0;
-        load_skin(sv.skin);
-        ui_open_shop();
-        for (int k = 0; k < 6; k++) frames(2, IN_DOWN);
-        frames(2, IN_RIGHT);
-        shot("tienda_aw_equipado");
-        /* nivel 3 de Snake Puzzle: comer y girar en todas direcciones con un gusano de Apple Worm */
-        for (int k = 1; k <= 12; k += 1) {
-            aw_mode = 0;
-            for (int i = 0; i < levels.count; i++) {
-                Level L;
-                level_get(&levels, i, &L);
-                if (L.num == 3) { play_solution(i, k); break; }
-            }
-            frames(30, 0);
-            char b2[32];
-            snprintf(b2, sizeof(b2), "aw_skin_giros%02d", k);
-            shot(b2);
-        }
-        aw_mode = 1;
-        play_start(2, 0);
-        frames(40, 0);
-        shot("aw_nivel3_skin_aw");
-        aw_mode = 0;
-        play_start(2, 0);
-        frames(40, 0);
-        shot("sp_nivel3_skin_aw");
-        /* inicio con varios gusanos de Apple Worm equipados (cabeza y cuerpo de la vista previa) */
-        for (int k = 0; k < 19; k += 6) {
-            sv.skin = AW_SKIN0 + k;
-            load_skin(sv.skin);
-            set_state(GS_HOME);
-            frames(2, 0);
-            char b3[32];
-            snprintf(b3, sizeof(b3), "inicio_aw_skin%02d", k);
-            shot(b3);
-            if (k == 6) {
-                ui_open_shop();
-                frames(2, 0);
-                shot("tienda_aw_skin06_equipado");
-            }
-        }
-        sv.skin = 0;
-        load_skin(0);
-        /* fugas: equipar 60 aspectos seguidos no debe hacer crecer la memoria */
-        {
-            struct mallinfo2 a = mallinfo2();
-            for (int k = 0; k < 60; k++) load_skin(k & 1 ? AW_SKIN0 + k % 19 : k % 29);
-            load_skin(0);
-            struct mallinfo2 b = mallinfo2();
-            printf("memoria tras 60 cambios de aspecto: %+ld KB\n", ((long)b.uordblks - (long)a.uordblks) / 1024);
-        }
-        aw_mode = 1;
-        play_solution(0, -1);
-        frames(200, 0);
-        shot("aw_superado");
-        aw_mode = 0;
-    }
-    /* zigzag con todos los giros, piezas grandes: Snake Puzzle (skin 0) y Apple Worm (skin 100) */
+    /* fugas: equipar 60 aspectos seguidos no debe hacer crecer la memoria */
     {
-        static const int8_t path[][2] = {{6, 4}, {5, 4}, {4, 4}, {4, 3}, {4, 2}, {5, 2}, {6, 2}, {6, 1}, {6, 0}, {5, 0},
-                                         {4, 0}, {3, 0}, {2, 0}, {2, 1}, {2, 2}, {1, 2}, {0, 2}, {0, 3}, {0, 4}, {1, 4}};
-        int skins_t[2] = {0, AW_SKIN0};
-        for (int k = 0; k < 2; k++) {
-            if (skins_t[k] >= AW_SKIN0 && !nskins_aw) continue;
-            load_skin(skins_t[k]);
-            static GState zs;
-            memset(&zs, 0, sizeof(zs));
-            zs.n = 20;
-            zs.dir = D_LEFT;
-            float xs[20], ys[20];
-            for (int i = 0; i < 20; i++) {
-                zs.s[i] = (Cell){path[i][0], path[i][1]};
-                xs[i] = 60 + path[i][0] * 50;
-                ys[i] = 240 - path[i][1] * 50;
-            }
-            gfx_begin(RGBA(90, 140, 200, 255));
-            draw_snake_screen(&zs, xs, ys, 50);
-            char p2[64];
-            snprintf(p2, sizeof(p2), "out/%02d_zigzag_%s.ppm", shot_n++, k ? "aw" : "sp");
-            host_shot(p2);
-        }
+        load_skin(1);   /* se mide desde un estado con aspecto y fondo ya cargados */
         load_skin(0);
+        struct mallinfo2 a = mallinfo2();
+        for (int k = 1; k < 60; k++) load_skin(k % (nskins ? nskins : 1));
+        load_skin(0);
+        struct mallinfo2 b = mallinfo2();
+        printf("memoria tras 60 cambios de aspecto: %+ld KB\n", ((long)b.uordblks - (long)a.uordblks) / 1024);
     }
     classic_start();
     frames(2, IN_UP);

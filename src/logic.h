@@ -57,7 +57,6 @@ typedef struct {
     Cell bar[MAX_BAR];                    /* agujero del que sale el haz */
     uint8_t bar_dir[MAX_BAR];
     uint8_t bar_max[MAX_BAR];             /* hasta la pared */
-    uint8_t aw;                           /* nivel de Apple Worm (numero >= 1000): reglas de sus sierras */
 } GLevel;
 
 /* resultado de un movimiento */

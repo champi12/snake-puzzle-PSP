@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "game.h"
-#include "aw.h"
 #include "audio.h"
 #include "devlog.h"
 #include "ui_ids.h"
@@ -19,7 +18,7 @@ int16_t widx[160];
 int nwidx;
 Tex bg_tex, home_tex;
 LevelPack levels;
-int nskins, nbgs, nskins_aw, skin_aw;
+int nskins, nbgs;
 int gstate = GS_LOADING;
 float gtime;
 static int loaded_skin = -1, loaded_bg = -1;
@@ -28,8 +27,7 @@ extern int save_load(void);
 extern int meta_load(const char *path);
 
 static const char *state_names[GS_COUNT] = {"CARGA", "INICIO", "NIVELES", "JUGANDO", "PAUSA", "SUPERADO", "PERDIDO",
-                                             "TIENDA", "DIARIO", "AJUSTES", "CLASICO", "CLASICO_FIN", "PREMIO",
-                                             "AW_NIVELES", "AW_SKINS"};
+                                             "TIENDA", "DIARIO", "AJUSTES", "CLASICO", "CLASICO_FIN", "PREMIO"};
 const char *dbg_state_name(int s) { return s >= 0 && s < GS_COUNT ? state_names[s] : "?"; }
 
 void set_state(int s)
@@ -40,7 +38,7 @@ void set_state(int s)
     gstate = s;
     dbg_game.state = s;
     /* puntos de control de memoria: deben dar lo mismo cada vez que se pasa por ellos */
-    if (s != prev && (s == GS_HOME || s == GS_SHOP || s == GS_SELECT || s == GS_AW_SELECT))
+    if (s != prev && (s == GS_HOME || s == GS_SHOP || s == GS_SELECT))
         dlog_mem(dbg_state_name(s));
 }
 
@@ -88,12 +86,7 @@ static const ShopItemDef *shop_def(int type, int id)
     return NULL;
 }
 
-/* las skins de Apple Worm estan todas desbloqueadas (por ahora, para probarlas) */
-int skin_available(int id)
-{
-    if (id >= AW_SKIN0) return id - AW_SKIN0 < nskins_aw;
-    return id >= 0 && id < 32 && (sv.skins_owned >> id) & 1;
-}
+int skin_available(int id) { return id >= 0 && id < 32 && (sv.skins_owned >> id) & 1; }
 int bg_available(int id) { return id >= 0 && id < 32 && (sv.bgs_owned >> id) & 1; }
 
 /* SkinProgress: cada tramo de niveles va llenando la barra de un aspecto (type 0) o un fondo (type 1) */
@@ -149,8 +142,7 @@ void load_skin(int id)
 {
     if (id == loaded_skin) return;
     char p[64];
-    if (id >= AW_SKIN0) snprintf(p, sizeof(p), "data/aw/skin%02d.spr", id - AW_SKIN0);
-    else snprintf(p, sizeof(p), "data/skin%02d.spr", id);
+    snprintf(p, sizeof(p), "data/skin%02d.spr", id);
     /* el aspecto y el fondo comparten el hueco del final de la VRAM: se recargan los dos */
     sheet_free(&skin_sheet);
     tex_free(&bg_tex);
@@ -167,7 +159,6 @@ void load_skin(int id)
         load_end(p, skin_sheet.bytes);
     vram_bg = gfx_vram_mark();
     loaded_skin = id;
-    skin_aw = id >= AW_SKIN0;
     int b = loaded_bg;
     loaded_bg = -1;
     if (b >= 0) load_bg(b);
@@ -230,7 +221,6 @@ void game_init(void)
     load_begin();
     if (bg_load(&home_tex, "data/home.tex") == 0) load_end("home.tex", home_tex.bytes);
     nskins = count_files("data/skin%02d.spr", 32);
-    nskins_aw = count_files("data/aw/skin%02d.spr", 32);
     nbgs = count_files("data/bg%02d.tex", 32);
     save_load();
     if (sv.cur_level >= levels.count) sv.cur_level = levels.count - 1;

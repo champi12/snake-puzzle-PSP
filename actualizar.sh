@@ -116,40 +116,14 @@ else
     echo "$VER" > data/.version
 fi
 
-# Apple Worm (opcional): su .xapk o sus .rar partidos (apple-worm-1-1-18.part1.rar ...) aqui o en el escritorio
-AWV=$(sha1sum tools/appleworm.py | cut -c1-16)
-if [ ! -f data/aw/.version ] || [ "$(cat data/aw/.version)" != "$AWV" ]; then
-    AW=""
-    while IFS= read -r d; do
-        for f in "$d"/*pple*orm*.xapk "$d"/*appleworm*.xapk; do [ -f "$f" ] && { AW="$f"; break 2; }; done
-    done < <(echo "."; echo "juego_aw"; desktops)
-    if [ -z "$AW" ]; then
-        RAR=""
-        while IFS= read -r d; do
-            for f in "$d"/*pple*orm*part1.rar; do [ -f "$f" ] && { RAR="$f"; break 2; }; done
-        done < <(echo "."; desktops)
-        if [ -n "$RAR" ]; then
-            echo "Descomprimiendo Apple Worm: $RAR ..."
-            mkdir -p juego_aw
-            if command -v unrar > /dev/null; then unrar x -o+ "$RAR" juego_aw/ > /dev/null
-            elif command -v 7z > /dev/null; then 7z x -y -ojuego_aw "$RAR" > /dev/null
-            elif command -v unar > /dev/null; then unar -f -o juego_aw "$RAR" > /dev/null; fi
-            for f in juego_aw/*.xapk juego_aw/*/*.xapk; do [ -f "$f" ] && AW="$f" && break; done
-        fi
-    fi
-    if [ -n "$AW" ]; then
-        echo "Generando data/aw/ desde $AW ..."
-        rm -rf data/aw && "$PY" tools/appleworm.py "$AW" data/ && echo "$AWV" > data/aw/.version
-    else
-        echo "(no encuentro Apple Worm: el juego sale sin su apartado)"
-    fi
-fi
+# el apartado de Apple Worm se quito: sus datos de versiones anteriores no van a la PSP
+rm -rf data/aw juego_aw
 
 echo "== 4/4 Compilando =="
 [ -z "$PSPDEV" ] && export PSPDEV=$HOME/pspdev && export PATH=$PSPDEV/bin:$PATH
 command -v psp-gcc > /dev/null || { echo "No encuentro psp-gcc: exporta PSPDEV con la ruta de pspdev"; exit 1; }
 ./build_dist.sh
-rm -f dist/PSP/GAME/SNAKEPZL/data/.version dist/PSP/GAME/SNAKEPZL/data/aw/.version
+rm -f dist/PSP/GAME/SNAKEPZL/data/.version
 
 DEST=$2
 # destino fijo de Joan: C:\Users\Joan jimenez\Desktop\PSP\GAME\SNAKEPZL

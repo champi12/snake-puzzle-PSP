@@ -67,10 +67,8 @@ class SpriteSheet:
         self.items.append((im, ox, oy, uw, uh))
         return len(self.items) - 1
 
-    def add_unity(self, obj, scale=PX, maxpx=None, fix=None):
+    def add_unity(self, obj, scale=PX, maxpx=None):
         im, pv, ppu = sprite_full(obj)
-        if fix is not None:
-            im = fix(im)       # retoque antes de reducir (bloques de Apple Worm)
         uw, uh = im.width / ppu, im.height / ppu
         bb = im.getbbox() or (0, 0, 1, 1)
         crop = im.crop(bb)

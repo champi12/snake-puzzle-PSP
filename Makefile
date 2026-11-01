@@ -1,7 +1,7 @@
 # Snake Puzzle para PSP - pspdev / PSPSDK
 TARGET = snake
 OBJS = src/main.o src/gfx.o src/gfx_psp.o src/level.o src/logic.o src/game.o src/play.o src/ui.o src/classic.o \
-       src/save.o src/audio_psp.o src/devlog.o src/lang.o src/aw.o
+       src/save.o src/audio_psp.o src/devlog.o src/lang.o
 
 INCDIR = src
 CFLAGS = -O2 -G0 -g -Wall -ffast-math -fno-strict-aliasing -MMD -MP
