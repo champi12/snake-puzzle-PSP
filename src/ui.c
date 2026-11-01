@@ -140,8 +140,76 @@ static void home_input(unsigned in)
 /* ---------------------------------------------------------------- niveles (SelectLevelController: 15 por pagina) */
 static int level_open(int i) { return i <= sv.cur_level || level_won(i); }
 
+/* selector de niveles con los graficos del de Apple Worm (data/lvsel.spr, tools/lvsel.py); si no estan, el propio */
+enum { LV_WINDOW, LV_PLACE, LV_STAR_L, LV_STAR_C, LV_STAR_R, LV_STAR_L_G, LV_STAR_C_G, LV_STAR_R_G, LV_LOCK, LV_ARROW_L,
+       LV_ARROW_R, LV_SKINS, LV_COUNT };
+static Sheet lv_sheet;
+static int16_t lv_idx[LV_COUNT];
+static int lv_state;   /* 0 sin probar, 1 cargado, -1 no hay */
+
+static int lvsel_ok(void)
+{
+    if (lv_state) return lv_state > 0;
+    lv_state = -1;
+    for (int k = 0; k < LV_COUNT; k++) lv_idx[k] = -1;
+    FILE *f = fopen("data/lvsel.idx", "rb");
+    if (!f) return 0;
+    uint8_t b[2];
+    int n = 0;
+    if (fread(b, 1, 2, f) == 2) n = b[0] | b[1] << 8;
+    for (int k = 0; k < n && k < LV_COUNT; k++) {
+        if (fread(b, 1, 2, f) != 2) break;
+        lv_idx[k] = (int16_t)(b[0] | b[1] << 8);
+    }
+    fclose(f);
+    if (sheet_load(&lv_sheet, "data/lvsel.spr") == 0 && lv_idx[LV_PLACE] >= 0) lv_state = 1;
+    return lv_state > 0;
+}
+
+static void lv_fit(int k, float x, float y, float w, float h)
+{
+    if (lv_idx[k] >= 0) gfx_sprite_fit(&lv_sheet, lv_idx[k], x, y, w, h, WHITE);
+}
+
+static void select_draw_lvsel(void)
+{
+    gfx_bg(&bg_tex, WHITE);
+    if (lv_idx[LV_WINDOW] >= 0) gfx_sprite_rect(&lv_sheet, lv_idx[LV_WINDOW], 50, 22, 380, 224, WHITE);
+    else draw_panel(50, 22, 380, 224);
+    char b[48];
+    int pages = (levels.count + 14) / 15;
+    snprintf(b, sizeof(b), T("NIVELES   %d / %d"), page + 1, pages);
+    text_draw(SCR_W / 2, 30, FONT_L, b, WHITE, 1);
+    for (int k = 0; k < 15; k++) {
+        int i = page * 15 + k;
+        if (i >= levels.count) break;
+        float x = 106 + (k % 5) * 67, y = 90 + (k / 5) * 54;
+        int on = k == sel;
+        float s = on ? 1.1f + 0.05f * sinf(gtime * 6) : 1.0f;
+        if (level_open(i)) {
+            lv_fit(LV_PLACE, x, y, 46 * s, 44 * s);
+            snprintf(b, sizeof(b), "%d", i + 1);
+            text_draw(x, y - 12 * s, FONT_L, b, RGBA(110, 70, 40, 255), 1);
+            int w = level_won(i);   /* tres estrellas al superarlo */
+            lv_fit(w ? LV_STAR_L : LV_STAR_L_G, x - 13, y + 19, 13, 13);
+            lv_fit(w ? LV_STAR_C : LV_STAR_C_G, x, y + 17, 15, 15);
+            lv_fit(w ? LV_STAR_R : LV_STAR_R_G, x + 13, y + 19, 13, 13);
+        } else
+            lv_fit(LV_LOCK, x, y, 40 * s, 42 * s);
+    }
+    if (page > 0) lv_fit(LV_ARROW_L, 36, 150, 26, 40);
+    if (page < pages - 1) lv_fit(LV_ARROW_R, 444, 150, 26, 40);
+    lv_fit(LV_SKINS, 446, 30, 38, 38);
+    counters(SCR_H - 40);
+    help(T(BTN_X " Jugar   " BTN_TRI " Tienda   " BTN_O " Volver   L/R Pagina"));
+}
+
 static void select_draw(void)
 {
+    if (lvsel_ok()) {
+        select_draw_lvsel();
+        return;
+    }
     gfx_bg(&bg_tex, WHITE);
     gfx_fill(0, 0, SCR_W, SCR_H, RGBA(0, 0, 0, 60));
     int pages = (levels.count + 14) / 15;
@@ -186,6 +254,10 @@ static void select_input(unsigned in)
         int i = page * 15 + sel;
         if (level_open(i)) { play_sfx(SFX_CLICK); play_start(i, 0); }
         else { play_sfx(SFX_STOP); ui_message(T("Supera los niveles anteriores para abrir este"), 1.5f); }
+    }
+    if (in & IN_TRIANGLE) {   /* boton de aspectos del selector: la tienda */
+        play_sfx(SFX_CLICK);
+        ui_open_shop();
     }
 }
 

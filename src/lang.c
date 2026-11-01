@@ -15,6 +15,7 @@ static const char *const tr[][2] = {
     /* niveles */
     {"NIVELES   %d / %d", "LEVELS   %d / %d"},
     {BTN_X " Jugar   " BTN_O " Volver   L/R Cambiar de pagina", BTN_X " Play   " BTN_O " Back   L/R Change page"},
+    {BTN_X " Jugar   " BTN_TRI " Tienda   " BTN_O " Volver   L/R Pagina", BTN_X " Play   " BTN_TRI " Shop   " BTN_O " Back   L/R Page"},
     {"Supera los niveles anteriores para abrir este", "Beat the previous levels to unlock this one"},
     /* pausa */
     {"PAUSA", "PAUSED"}, {"CONTINUAR", "CONTINUE"}, {"REINICIAR", "RESTART"}, {"INICIO", "HOME"},
