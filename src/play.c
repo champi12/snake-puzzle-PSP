@@ -584,15 +584,15 @@ static void aw_draw_tiles(int layer)
         }
 }
 
-/* pinchos: apuntan hacia fuera del suelo al que estan pegados. El dibujo de Apple Worm apunta hacia abajo (giros
- * en cuartos de vuelta a la izquierda) */
+/* pinchos: apuntan hacia fuera del suelo al que estan pegados. El dibujo de Apple Worm (en su lienzo original)
+ * apunta hacia arriba, pegado al suelo de abajo (giros en cuartos de vuelta a la izquierda) */
 static int aw_spike_rot(int x, int y)
 {
-    if (aw_solid(x, y - 1)) return 2;   /* suelo debajo: hacia arriba */
-    if (aw_solid(x, y + 1)) return 0;   /* techo: hacia abajo */
-    if (aw_solid(x - 1, y)) return 1;   /* pared a la izquierda: hacia la derecha */
-    if (aw_solid(x + 1, y)) return 3;   /* pared a la derecha: hacia la izquierda */
-    return 2;
+    if (aw_solid(x, y - 1)) return 0;   /* suelo debajo: hacia arriba */
+    if (aw_solid(x, y + 1)) return 2;   /* techo: hacia abajo */
+    if (aw_solid(x - 1, y)) return 3;   /* pared a la izquierda: hacia la derecha */
+    if (aw_solid(x + 1, y)) return 1;   /* pared a la derecha: hacia la izquierda */
+    return 0;
 }
 
 static void aw_draw_objects(const GState *s, const GState *from, float t, int front)
