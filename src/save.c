@@ -131,6 +131,7 @@ int meta_load(const char *path)
     memset(&meta, 0, sizeof(meta));
     for (int i = 0; i < MAX_SKINS; i++) meta.skin_icon[i] = -1;
     for (int i = 0; i < MAX_BGS; i++) meta.bg_icon[i] = -1;
+    for (int i = 0; i < 32; i++) meta.shop_ui[i] = -1;
     FILE *f = fopen(path, "rb");
     if (!f) return -1;
     static uint8_t b[16384];
@@ -208,9 +209,20 @@ int meta_load(const char *path)
         for (int i = 0; i < 32; i++) meta.bg_icon[i] = (int16_t)rd16(p + 64 + i * 2);
         p += 128;
     }
-    NEED(44);
-    for (int i = 0; i < 22; i++) meta.prog_icon[i] = (int16_t)rd16(p + i * 2);
-    p += 44;
+    for (int i = 0; i < 44; i++) meta.prog_icon[i] = -1;
+    if (v2) {
+        NEED(2);
+        int k = rd16(p);
+        p += 2;
+        NEED(k * 2);
+        for (int i = 0; i < k; i++)
+            if (i < 44) meta.prog_icon[i] = (int16_t)rd16(p + i * 2);
+        p += k * 2;
+    } else {
+        NEED(44);
+        for (int i = 0; i < 22; i++) meta.prog_icon[i] = (int16_t)rd16(p + i * 2);
+        p += 44;
+    }
     if (p + 2 <= end) {
         meta.npack = rd16(p);
         p += 2;
@@ -246,6 +258,11 @@ int meta_load(const char *path)
             k = *p++;
             for (int i = 0; i < k && p + 2 <= end; i++, p += 2)
                 if (meta.nignore < 64) meta.ignore[meta.nignore++] = rd16(p);
+        }
+        if (p < end) {
+            k = *p++;
+            for (int i = 0; i < k && p + 2 <= end; i++, p += 2)
+                if (i < 32) meta.shop_ui[i] = (int16_t)rd16(p);
         }
     }
 #undef NEED

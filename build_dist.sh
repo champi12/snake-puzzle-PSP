@@ -9,7 +9,7 @@ DEVLOG=${DEVLOG:-1}
 make clean > /dev/null
 make -C exhandler clean > /dev/null 2>&1 || true
 make -C exhandler/loader clean > /dev/null 2>&1 || true
-make DEVLOG=$DEVLOG
+make DEVLOG=$DEVLOG ANALOG=${ANALOG:-0}
 rm -rf dist
 mkdir -p dist/PSP/GAME/SNAKEPZL
 cp EBOOT.PBP dist/PSP/GAME/SNAKEPZL/

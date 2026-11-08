@@ -67,6 +67,8 @@ void gfx_sprite(const Sheet *s, int id, float x, float y, float scale, int rot, 
 void gfx_sprite_angle(const Sheet *s, int id, float x, float y, float scale, float ang, uint32_t color);
 /* sprite estirado a un rectangulo de pantalla */
 void gfx_sprite_rect(const Sheet *s, int id, float x, float y, float w, float h, uint32_t color);
+/* solo la parte de abajo (frac de 0 a 1) de un sprite estirado a un rectangulo: Image.fillAmount vertical */
+void gfx_sprite_rect_bottom(const Sheet *s, int id, float x, float y, float w, float h, float frac, uint32_t color);
 /* sprite centrado en (x, y) y escalado para caber en w x h sin deformarse */
 void gfx_sprite_fit(const Sheet *s, int id, float x, float y, float w, float h, uint32_t color);
 /* ancho y alto del sprite en unidades (para colocarlo) */

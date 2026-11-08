@@ -22,9 +22,9 @@
 #define CMAX (CW * CH)
 
 static Cell body[CMAX], prev_body[CMAX];
-static uint8_t rev[CMAX];          /* BodyPartInfo.isReversed (ver logic.c) */
+static uint8_t rev[CMAX], prev_rev[CMAX];   /* BodyPartInfo.isReversed (ver logic.c) */
 static int last_in;
-static int n, prev_n, dir, next_dir, score, alive, apple_x, apple_y, started;
+static int n, prev_n, dir, next_dir, score, alive, apple_x, apple_y, started, steps;
 static float step_t, step_len, time_s, dead_t;
 static int rank_pos, rank_reward;
 static int board[10];
@@ -69,10 +69,12 @@ void classic_start(void)
     /* prefab del modo clasico: la cabeza en (-2,67; 1,67) -> casilla (-3, 1), que desde p0 (-7,-6) es (4, 7) */
     for (int i = 0; i < n; i++) body[i] = (Cell){(int8_t)(4 - i), 7};
     memset(rev, 0, sizeof(rev));
+    memset(prev_rev, 0, sizeof(prev_rev));
     last_in = D_RIGHT;
     memcpy(prev_body, body, sizeof(body));
     prev_n = n;
     score = 0;
+    steps = 0;
     alive = 1;
     started = 0;
     step_t = 0;
@@ -139,7 +141,9 @@ void classic_update(float dt)
     if (step_t < step_len) return;
     step_t -= step_len;
     memcpy(prev_body, body, sizeof(body));
+    memcpy(prev_rev, rev, sizeof(rev));
     prev_n = n;
+    steps++;
     dir = next_dir;
     int x = (body[0].x + DIR_DX[dir] + CW) % CW, y = (body[0].y + DIR_DY[dir] + CH) % CH;
     int grow = x == apple_x && y == apple_y;
@@ -178,24 +182,22 @@ void classic_draw(void)
     if (sk_apple >= 0) gfx_sprite(&skin_sheet, sk_apple, ax, ay, cs, 0, 0, WHITE);
     else gfx_sprite(&world, WSPR(W_APPLE), ax, ay, cs, 0, 0, WHITE);
     static GState st;
-    static float xs[CMAX], ys[CMAX];
-    st.n = n;
+    static float xs[CMAX + 1], ys[CMAX + 1];
     st.dir = dir;
     st.dead = !alive;
-    /* el cuerpo se queda en casillas enteras (con sus esquinas) y solo se deslizan la cabeza y la cola: la
-     * serpiente avanza sin parar y, si se deslizara cada parte, a mitad de paso las curvas quedarian cortadas */
+    /* el cuerpo se queda en casillas enteras (con sus esquinas); la cabeza entra en su casilla nueva y la cola sale
+     * de la que deja. Para que la cola no se separe (se veia un hueco que se abria y cerraba en cada paso, y un salto
+     * en las curvas) la casilla por la que pasa se dibuja ya con su tramo de cuerpo y la cola va encima, deslizandose
+     * de su casilla anterior a la nueva. */
+    int tail_slide = started && alive && n == prev_n && n > 1 &&
+                     abs(body[n - 1].x - prev_body[n - 1].x) + abs(body[n - 1].y - prev_body[n - 1].y) == 1;
     for (int i = 0; i < n; i++) {
         float fx = body[i].x, fy = body[i].y;
-        int slide = (i == 0 || (i == n - 1 && n == prev_n)) && i < prev_n;
-        /* la cola solo se desliza en linea recta: en una curva se separaria del cuerpo */
-        if (slide && i == n - 1 && n > 1 &&
-            (body[i].x - prev_body[i].x != body[i - 1].x - body[i].x || body[i].y - prev_body[i].y != body[i - 1].y - body[i].y))
-            slide = 0;
-        if (slide) {
-            float dx = body[i].x - prev_body[i].x, dy = body[i].y - prev_body[i].y;
+        if (i == 0 && prev_n > 0 && started && alive) {
+            float dx = body[0].x - prev_body[0].x, dy = body[0].y - prev_body[0].y;
             if (fabsf(dx) + fabsf(dy) <= 1.01f) {   /* al cruzar un borde no se desliza */
-                fx = prev_body[i].x + dx * t;
-                fy = prev_body[i].y + dy * t;
+                fx = prev_body[0].x + dx * t;
+                fy = prev_body[0].y + dy * t;
             }
         }
         st.s[i] = body[i];
@@ -203,7 +205,19 @@ void classic_draw(void)
         xs[i] = ox + (fx + 0.5f) * cs;
         ys[i] = oy + (CH - 1 - fy + 0.5f) * cs;
     }
+    st.n = n;
+    if (tail_slide) {
+        Cell from = prev_body[n - 1];
+        st.s[n] = from;
+        st.rev[n] = prev_rev[n - 1];
+        float fx = from.x + (body[n - 1].x - from.x) * t, fy = from.y + (body[n - 1].y - from.y) * t;
+        xs[n] = ox + (fx + 0.5f) * cs;
+        ys[n] = oy + (CH - 1 - fy + 0.5f) * cs;
+        st.n = n + 1;
+    }
+    snake_phase = steps & 1;
     draw_snake_screen(&st, xs, ys, cs);
+    snake_phase = 0;
     char b[64];
     gfx_fill(0, 0, SCR_W, 24, RGBA(0, 0, 0, 110));
     snprintf(b, sizeof(b), T("PUNTOS %d"), score);

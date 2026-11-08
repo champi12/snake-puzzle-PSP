@@ -36,6 +36,7 @@ void plat_date(int *y, int *m, int *d)
     *m = v / 100 % 100;
     *d = v % 100;
 }
+int plat_secs_of_day(void) { return 15 * 3600 + 25 * 60 + 40 + fake_ms / 1000; }
 void fatal_error(const char *msg) { fprintf(stderr, "ERROR: %s\n", msg); exit(1); }
 
 int audio_init(const char *dir) { (void)dir; return 0; }
@@ -330,8 +331,9 @@ int main(int argc, char **argv)
         frames(2, IN_R);
         shot("tienda_packs_1429");
         int bought = 0;
-        for (int k = 0; k < 5; k++) {   /* los de temporada y la oferta van al final: se compran de abajo arriba */
-            for (int j = 0; j < 20; j++) frames(1, IN_DOWN);
+        for (int k = 0; k < 5; k++) {   /* tarjetas: especial, las 4 de temporada y la oferta; se compra la segunda */
+            for (int j = 0; j < 20; j++) frames(1, IN_LEFT);
+            frames(1, IN_RIGHT);
             frames(2, IN_CROSS);
             while (gstate == GS_REWARD) { frames(2, IN_CIRCLE); bought++; }
             set_state(GS_SHOP);
@@ -344,6 +346,25 @@ int main(int argc, char **argv)
         frames(2, IN_L);
         frames(2, IN_L);
         shot("tienda_aspectos_comprados");
+    }
+    /* modo retro: la cola no debe separarse del cuerpo (recta y curva, varios momentos de cada paso) */
+    {
+        classic_start();
+        frames(2, IN_RIGHT);
+        frames(30, 0);           /* crece algo de recorrido */
+        for (int k = 0; k < 4; k++) {
+            frames(4, 0);
+            char b[32];
+            snprintf(b, sizeof(b), "retro_recta%d", k);
+            shot(b);
+        }
+        frames(1, IN_UP);
+        for (int k = 0; k < 8; k++) {
+            frames(4, 0);
+            char b[32];
+            snprintf(b, sizeof(b), "retro_curva%d", k);
+            shot(b);
+        }
     }
     printf("pruebas 14.2.9: %s\n", fails ? "FALLOS" : "todo bien");
     return fails ? 1 : 0;

@@ -9,6 +9,9 @@ CFLAGS += $(EXTRA)
 # devlog activado salvo DEVLOG=0 (version publica)
 DEVLOG ?= 1
 CFLAGS += -DDEVLOG=$(DEVLOG)
+# stick analogico: desactivado por ahora (fallaba en la consola de pruebas); make ANALOG=1 para usarlo
+ANALOG ?= 0
+CFLAGS += -DANALOG=$(ANALOG)
 ASFLAGS = $(CFLAGS)
 LIBS = -lpspgu -lpspmp3 -lpspaudio -lpsputility -lpsppower -lpsprtc -lm
 

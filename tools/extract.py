@@ -327,9 +327,14 @@ UI_SPRITES = ['Logo', 'Background_Home', 'Btn_Play', 'Btn_Green', 'Btn_Gray', 'B
               'Btn_Minigame', 'Title_Rating', 'Icon_Ads', 'NewSkinUnlocked', 'NewBGUnlocked', 'Btn_Skin_Christmas',
               'button_ranking', 'icon_HOME', 'icon_noti', 'Btn_Move', 'Btn_Move_Active', 'icon_MOVE_0',
               # 14.2.9: manzanas del selector de niveles (LevelSelectElement), Page_Base y la oferta limitada
-              'Apple_Green', 'Apple_Yellow', 'Apple_Gray', 'Apple_Red', 'Page_Base', 'Icon_LimitedOffer']
+              'Apple_Green', 'Apple_Yellow', 'Apple_Gray', 'Apple_Red', 'Page_Base', 'Icon_LimitedOffer',
+              # pantallas de la 14.2.9: banners de los paquetes de temporada (inicio), ventana de ajustes, banderas...
+              'Banner_LunarNewYear', 'Banner_Summer', 'Banner_Pride', 'Banner_Worldcup', 'tag_soldout', 'tag_saleOff',
+              'Base_Time', 'Popup_Setting_Gameplay', 'Btn_Cancel', 'Flag', 'bg_mask', 'NewSkin', 'NewBG']
 UI_MAXPX = {'NewSkinUnlocked': 160, 'NewBGUnlocked': 160, 'Title_Rating': 160, 'Background_Home': 0, 'Logo': 200, 'Popup_Win': 220, 'Popup_Lose': 220, 'base_popup': 220,
-            'Banner_Win': 200, 'Banner_Lose': 200, 'Title_Base': 160, 'Frame': 160}
+            'Banner_Win': 200, 'Banner_Lose': 200, 'Title_Base': 160, 'Frame': 160,
+            'Btn_Play': 128, 'Btn_Minigame': 128, 'Banner_LunarNewYear': 128, 'Banner_Summer': 128, 'Banner_Pride': 128,
+            'Banner_Worldcup': 128, 'Popup_Setting_Gameplay': 220, 'Flag': 120, 'tag_soldout': 80}
 
 
 # nombres que cambiaron en la 14.2.9 (Unity 6): se usa el primero que exista
@@ -704,6 +709,13 @@ def row_json(G, o):
         return None
 
 
+# graficos de la tienda de la 14.2.9 (orden fijo: SU_* de src/ui_ids.h), a 1/4 de su tamano (1920x1080 -> 480x270)
+SHOP_UI = ['PopUp_SkinShop', 'Tab_Selected', 'Tab_Unselected', 'Icon_Skin', 'Icon_BG', 'Slot_Unlocked', 'Slot_Highlight',
+           'Base_Lock', 'Lock', 'TagNew', 'TagLunar', 'TagHalloween', 'TagXmas', 'TagVip', 'Ground', 'Scroller',
+           'Scroller2', 'Btn_Back', 'SpecialBundle', 'Summer_Bundle', 'Pride_Bundle', 'Worldcup_Bundle',
+           'LunarNewYear_Bundle_', 'DavidDuck_Bundle', 'BasePack', 'icon_hint']
+
+
 def export_shop(G, out):
     """Tienda: iconos de aspectos y fondos (shopitems/), dibujos de la barra de progreso (progress/) y los datos
     de juego: estado de cada articulo (data/new: ShopInfo), progreso de aspectos (SkinProgress), recompensa diaria,
@@ -719,10 +731,22 @@ def export_shop(G, out):
     for i in range(64):
         o = G.get('shopitems/backgrounds/%d' % i, 'Sprite')
         bg_icon.append(sh.add_unity(o, scale=48, maxpx=72) if o else -1)
-    for i in range(11):
-        for kind in ('progress/progress_%d', 'progress/full_%d'):
-            o = G.get(kind % i, 'Sprite')
-            prog.append(sh.add_unity(o, scale=48, maxpx=96) if o else -1)
+    # siluetas del progreso (RewardProgressPopup): progress/progress_N y full_N por numero de aspecto, y las de los
+    # fondos en progress/bg/ (indices 0-21 aspectos, 22-43 fondos)
+    for folder in ('progress/', 'progress/bg/'):
+        for i in range(11):
+            for kind in ('progress_%d', 'full_%d'):
+                o = G.get(folder + kind % i, 'Sprite')
+                prog.append(sh.add_unity(o, scale=48, maxpx=128) if o else -1)
+    found = find_sprites_by_name(G, SHOP_UI)
+    shop_ui = []
+    for nm in SHOP_UI:
+        o = found.get(nm)
+        if o is None:
+            shop_ui.append(-1)
+            continue
+        r = o.read_typetree()['m_Rect']
+        shop_ui.append(sh.add_unity(o, scale=1000, maxpx=max(4, int(round(max(r['width'], r['height']) / 4)))))
     sh.write(os.path.join(out, 'shop.spr'))
     # estado de la tienda (ShopItem: State 0 bloqueado, 2 elegido, 4 recompensa diaria, 6 evento; NeededAdWatchCount)
     items = None
@@ -798,7 +822,7 @@ def export_shop(G, out):
     blob += struct.pack('<H', len(top)) + b''.join(struct.pack('<H', int(round(t * 100))) for t in top)
     blob += struct.pack('<H', len(skin_icon)) + struct.pack('<%dh' % len(skin_icon), *skin_icon)
     blob += struct.pack('<H', len(bg_icon)) + struct.pack('<%dh' % len(bg_icon), *bg_icon)
-    blob += struct.pack('<22h', *prog[:22])
+    blob += struct.pack('<H', len(prog)) + struct.pack('<%dh' % len(prog), *prog)
     # paquetes de la tienda de pago (BasePackageItem: 0 sin anuncios, 1 pistas, 2 saltos, 3 aspecto, 4 fondo) y el
     # premio por "ver un anuncio" (BaseAdsPackageItem); en la PSP se pagan con fichas
     packs = {}
@@ -840,6 +864,7 @@ def export_shop(G, out):
         blob += struct.pack('<B', len(o)) + bytes(o)
     ignore = ignore[:64]
     blob += struct.pack('<B', len(ignore)) + b''.join(struct.pack('<H', i) for i in ignore)
+    blob += struct.pack('<B', len(shop_ui)) + b''.join(struct.pack('<h', i) for i in shop_ui)
     with open(os.path.join(out, 'meta.bin'), 'wb') as fo:
         fo.write(blob)
     print('  tienda: %d articulos, %d paquetes, %d tramos de progreso, %d dias de recompensa, ranking de %d' %

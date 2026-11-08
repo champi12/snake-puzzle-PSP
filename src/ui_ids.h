@@ -81,6 +81,27 @@ enum {
     UI_APPLE_RED = W_UI + 71,
     UI_PAGE_BASE = W_UI + 72,
     UI_ICON_LIMITEDOFFER = W_UI + 73,
-    UI_COUNT = 74
+    /* pantallas de la 14.2.9 */
+    UI_BANNER_LUNAR = W_UI + 74,
+    UI_BANNER_SUMMER = W_UI + 75,
+    UI_BANNER_PRIDE = W_UI + 76,
+    UI_BANNER_WORLDCUP = W_UI + 77,
+    UI_TAG_SOLDOUT = W_UI + 78,
+    UI_TAG_SALEOFF = W_UI + 79,
+    UI_BASE_TIME = W_UI + 80,
+    UI_POPUP_SETTING = W_UI + 81,
+    UI_BTN_CANCEL = W_UI + 82,
+    UI_FLAG = W_UI + 83,
+    UI_BG_MASK = W_UI + 84,
+    UI_NEWSKIN = W_UI + 85,
+    UI_NEWBG = W_UI + 86,
+    UI_COUNT = 87
+};
+/* graficos de la tienda de la 14.2.9 en data/shop.spr (meta.shop_ui, orden de SHOP_UI en tools/extract.py) */
+enum {
+    SU_POPUP, SU_TAB_SEL, SU_TAB_UNSEL, SU_ICON_SKIN, SU_ICON_BG, SU_SLOT, SU_SLOT_HL, SU_BASE_LOCK, SU_LOCK, SU_TAG_NEW,
+    SU_TAG_LUNAR, SU_TAG_HALLOWEEN, SU_TAG_XMAS, SU_TAG_VIP, SU_GROUND, SU_SCROLLER, SU_SCROLLER2, SU_BACK,
+    SU_CARD_SPECIAL, SU_CARD_SUMMER, SU_CARD_PRIDE, SU_CARD_WORLDCUP, SU_CARD_LUNAR, SU_CARD_DUCK, SU_BASEPACK,
+    SU_ICON_HINT, SU_COUNT
 };
 #endif

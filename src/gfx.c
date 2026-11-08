@@ -181,6 +181,18 @@ void gfx_sprite_rect(const Sheet *s, int id, float x, float y, float w, float h,
     be_quad(v, color);
 }
 
+void gfx_sprite_rect_bottom(const Sheet *s, int id, float x, float y, float w, float h, float frac, uint32_t color)
+{
+    if (!s || id < 0 || id >= s->nspr || frac <= 0) return;
+    if (frac > 1) frac = 1;
+    const Spr *r = &s->spr[id];
+    float y0 = y + h * (1 - frac), ty0 = r->y + r->h * (1 - frac);
+    float v[16] = {x, y0, r->x, ty0, x, y + h, r->x, r->y + r->h,
+                   x + w, y0, r->x + r->w, ty0, x + w, y + h, r->x + r->w, r->y + r->h};
+    be_bind(&s->pages[r->page]);
+    be_quad(v, color);
+}
+
 void gfx_sprite_fit(const Sheet *s, int id, float x, float y, float w, float h, uint32_t color)
 {
     if (!s || id < 0 || id >= s->nspr) return;

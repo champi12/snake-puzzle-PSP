@@ -45,8 +45,8 @@ static void face_reset(void);
 
 static void layout(void)
 {
-    /* casillas de 16 a 36 px; la franja de arriba es para el nivel y los contadores */
-    float top = 24, bottom = 16;
+    /* casillas de 16 a 36 px; la franja de arriba es para los botones del juego (GamePlay: Header) */
+    float top = 34, bottom = 16;
     float a = (SCR_W - 8) / (float)G.w, b = (SCR_H - top - bottom) / (float)G.h;
     cs = a < b ? a : b;
     if (cs > 36) cs = 36;
@@ -215,6 +215,7 @@ static void on_win(void)
     dlog("SUPERADO nivel %d%s en %d movimientos%s", play_pos + 1, pos_is_loop(play_pos) ? " (bucle)" : "", moves,
          first ? " (primera vez: +1 ficha)" : "");
     play_sfx(SFX_WIN);
+    ui_win_begin(first);
     set_state(GS_WIN);
     shop_unlock_check();
 }
@@ -373,11 +374,13 @@ static int head_frame(const GState *s)
 /* giro de Unity (eulerAngles.z, grados a la izquierda) -> giros de 90 de gfx_sprite */
 static int rot_of_z(int z) { return z == 90 ? 1 : z == -90 ? 3 : z == 180 ? 2 : 0; }
 
+int snake_phase;   /* modo clasico: las rayas claras y oscuras viajan con la serpiente (pasos dados, mod 2) */
+
 static void draw_part(int i, const GState *s, float px, float py, uint32_t col, float size)
 {
     int n = s->n;
     float sc = cs * size;
-    int dark = i > 0 && !(i & 1);
+    int dark = i > 0 && !((i + snake_phase) & 1);
     int H = dark ? SK_H2 : SK_H1, V = dark ? SK_V2 : SK_V1, IN_L = dark ? SK_C2 : SK_C1, OUT_R = dark ? SK_O2 : SK_O1,
         T = dark ? SK_T2 : SK_T1;
     if (i == 0) {
@@ -605,25 +608,34 @@ void play_draw(void)
         gfx_sprite(&world, WSPR(UI_HINTARROW), x, y, cs * 1.6f, rot_of(d), 0, WHITE);
     }
     dbg_sect_ms[3] = (plat_us() - t3) / 1000.0f;
-    /* barra de arriba: nivel, pistas, saltos */
+    /* botones de arriba como en la 14.2.9 (screens/gameplay, a 1/4): Reiniciar, Saltar y Pista con su numero a la
+     * izquierda, el nivel en Level_Bas en el centro y Ajustes a la derecha; debajo de cada uno, su boton de la PSP */
     unsigned t4 = plat_us();
-    gfx_fill(0, 0, SCR_W, 22, RGBA(0, 0, 0, 90));
     char b[64];
-    snprintf(b, sizeof(b), T("NIVEL %d"), play_pos + 1);
-    text_draw(SCR_W / 2, 2, FONT_M, b, WHITE, 1);
-    gfx_sprite_fit(&world, WSPR(UI_ICON_HINT), 12, 11, 18, 18, WHITE);
-    snprintf(b, sizeof(b), "%d", sv.hints);
-    text_draw(24, 3, FONT_S, b, WHITE, 0);
-    gfx_sprite_fit(&world, WSPR(UI_ICON_SKIPLEVEL), 52, 11, 18, 18, WHITE);
-    snprintf(b, sizeof(b), "%d", sv.skips);
-    text_draw(64, 3, FONT_S, b, WHITE, 0);
-    snprintf(b, sizeof(b), T("Movs. %d"), moves);
-    text_draw(SCR_W - 6, 3, FONT_S, b, WHITE, 2);
+    static const struct { int spr; const char *key; } L[3] = {{UI_BTN_REPLAY, BTN_TRI}, {UI_BTN_FOWARD, "R"}, {UI_BTN_HINT, BTN_SQ}};
+    static const float LX[3] = {22, 51, 82};
+    for (int i = 0; i < 3; i++) {
+        int id = WSPR(L[i].spr);
+        if (id >= 0) gfx_sprite_rect(&world, id, LX[i] - 12, 4, 24, 24, WHITE);
+        text_draw(LX[i], 26, FONT_S, L[i].key, WHITE, 1);
+        if (i) {   /* NumberBox con los saltos y las pistas */
+            int nb = WSPR(UI_NUMBERBOX);
+            if (nb >= 0) gfx_sprite_rect(&world, nb, LX[i] + 4, 0, 13, 12, WHITE);
+            snprintf(b, sizeof(b), "%d", i == 1 ? sv.skips : sv.hints);
+            text_draw(LX[i] + 10.5f, 0, FONT_S, b, RGBA(105, 58, 28, 255), 1);
+        }
+    }
+    int lb = WSPR(UI_LEVEL_BAS);
+    if (lb >= 0) gfx_sprite_rect(&world, lb, 240 - 40, 3, 80, 22, WHITE);
+    else gfx_fill(200, 3, 80, 22, RGBA(0, 0, 0, 110));
+    snprintf(b, sizeof(b), T("Nivel %d"), play_pos + 1);
+    text_draw(240, 14 - text_height(FONT_M) / 2, FONT_M, b, WHITE, 1);
+    int st = WSPR(UI_BTN_SETTINGS);
+    if (st >= 0) gfx_sprite_rect(&world, st, 459 - 12, 4, 24, 24, WHITE);
+    text_draw(459, 26, FONT_S, "START", WHITE, 1);
     if (gstate == GS_PLAY)
         text_draw(SCR_W / 2, SCR_H - 15, FONT_S,
-                  T(play_hint ? "PISTA: sigue la flecha   " BTN_TRI " Reiniciar   START Pausa"
-                              : BTN_SQ " Pista   " BTN_TRI " Reiniciar   L Deshacer   R Saltar   START Pausa"),
-                  RGBA(255, 255, 255, 200), 1);
+                  T(play_hint ? "PISTA: sigue la flecha" : "L Deshacer"), RGBA(255, 255, 255, 200), 1);
     dbg_sect_ms[7] = (plat_us() - t4) / 1000.0f;
 }
 
@@ -632,7 +644,10 @@ void draw_snake_screen(const GState *st, const float *xs, const float *ys, float
 {
     float save_cs = cs;
     cs = cell;
-    for (int i = st->n - 1; i >= 0; i--) draw_part(i, st, xs[i], ys[i], WHITE, 1.0f);
+    /* el cuerpo de atras adelante, luego la cola (va encima del tramo por el que se desliza) y la cabeza */
+    for (int i = st->n - 2; i >= 1; i--) draw_part(i, st, xs[i], ys[i], WHITE, 1.0f);
+    if (st->n > 1) draw_part(st->n - 1, st, xs[st->n - 1], ys[st->n - 1], WHITE, 1.0f);
+    if (st->n > 0) draw_part(0, st, xs[0], ys[0], WHITE, 1.0f);
     cs = save_cs;
 }
 

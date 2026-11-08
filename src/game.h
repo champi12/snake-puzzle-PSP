@@ -76,13 +76,15 @@ typedef struct {
     int lb_min, lb_max, lb_diff, lb_first, lb_top10, lb_value;
     int ntop;
     uint16_t top[400];             /* % de jugadores superados por nivel (x100) */
-    int16_t skin_icon[MAX_SKINS], bg_icon[MAX_BGS], prog_icon[22];
+    int16_t skin_icon[MAX_SKINS], bg_icon[MAX_BGS];
+    int16_t prog_icon[44];         /* siluetas del progreso: [id*2] vacia, [id*2+1] llena; +22 los fondos */
     int npack;                     /* paquetes de la tienda de pago (BasePackageItem), aqui con fichas */
     struct { uint8_t id, n, timer; uint8_t type[8], qty[8]; } pack[24];
     int nskin_order, nbg_order;    /* ShopRegionUI.sortIndex (lo que se ve en la tienda y en que orden) */
     uint8_t skin_order[MAX_SKINS], bg_order[MAX_BGS];
     int nignore;                   /* LevelConfig.ignoreLoopLevels: niveles que no salen en el bucle */
     uint16_t ignore[64];
+    int16_t shop_ui[32];           /* graficos de la tienda de la 14.2.9 en shop.spr (SU_*) */
 } Meta;
 enum { RW_NOADS = 0, RW_HINT, RW_SKIP, RW_SKIN, RW_BG };
 extern Meta meta;
@@ -138,6 +140,7 @@ void play_update(float dt);
 void play_draw(void);
 void draw_snake_preview(float x, float y, float cs, int len);
 void draw_snake_screen(const GState *st, const float *xs, const float *ys, float cell);
+extern int snake_phase;
 extern int play_idx;               /* indice del nivel (en levels.bin) */
 extern int play_pos;               /* posicion (igual que play_idx salvo en el bucle) */
 extern int play_hint;
@@ -152,7 +155,8 @@ void ui_reset_sel(void);
 void draw_button(float x, float y, float w, float h, const char *label, int selected, int enabled);
 void draw_panel(float x, float y, float w, float h);
 void reward_popup(int type, int id);   /* GS_REWARD: aspecto o fondo nuevo */
-void ui_open_shop(void);              /* tienda unica, pestana de aspectos */
+void ui_open_shop(void);
+void ui_win_begin(int first);         /* al superar un nivel: progreso de aspecto (si toca) y ventana de superado */              /* tienda unica, pestana de aspectos */
 extern int ui_return_state;
 
 /* modo clasico (classic.c) */
@@ -167,6 +171,7 @@ void classic_end_input(unsigned in);
 unsigned plat_ms(void);
 unsigned plat_us(void);
 void plat_date(int *y, int *m, int *d);
+int plat_secs_of_day(void);         /* segundos desde las 00:00 (reloj de la consola) */
 void plat_exit(void);
 const char *plat_write_dir(void);   /* carpeta donde se puede escribir (partida, devlog) */
 

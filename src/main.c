@@ -63,6 +63,13 @@ void plat_date(int *y, int *m, int *d)
     *d = t.day;
 }
 
+int plat_secs_of_day(void)
+{
+    ScePspDateTime t;
+    if (sceRtcGetCurrentClockLocalTime(&t) < 0) return 0;
+    return t.hour * 3600 + t.minute * 60 + t.second;
+}
+
 static int exit_cb(int a1, int a2, void *c) { running = 0; return 0; }
 static int cb_thread(SceSize a, void *p)
 {
@@ -198,8 +205,13 @@ int main(int argc, char **argv)
     if (th >= 0) sceKernelStartThread(th, 0, 0);
     int clk = scePowerSetClockFrequency(333, 333, 166);
     sceCtrlSetSamplingCycle(0);
+#if ANALOG
     sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
+#else
+    sceCtrlSetSamplingMode(PSP_CTRL_MODE_DIGITAL);   /* stick desactivado (ANALOG=0): solo la cruceta */
+#endif
     dlog_init();
+    dlog("CONTROLES: stick analogico %s", ANALOG ? "activado" : "DESACTIVADO (solo cruceta; make ANALOG=1 para activarlo)");
 #if DEVLOG
     load_exhandler();
 #endif
@@ -244,6 +256,7 @@ int main(int argc, char **argv)
         SceCtrlData pad;
         sceCtrlPeekBufferPositive(&pad, 1);
         unsigned b = pad.Buttons;
+#if ANALOG
         /* el stick hace de cruceta */
         int ax = pad.Lx - 128, ay = pad.Ly - 128, sdir = 0;
         if (ax < -70) sdir = PSP_CTRL_LEFT;
@@ -253,6 +266,9 @@ int main(int argc, char **argv)
         if (abs(ax) < 40 && abs(ay) < 40) stick = 0;
         else if (sdir) stick = sdir;
         b |= stick;
+#else
+        (void)stick;
+#endif
         unsigned pr = b & ~prev;
         prev = b;
         if (pr & PSP_CTRL_SELECT) show_perf = (show_perf + 1) & 3;

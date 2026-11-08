@@ -11,6 +11,7 @@
 #include "audio.h"
 #include "devlog.h"
 #include "ui_ids.h"
+#include "skin.h"
 
 #define TXT_DARK RGBA(105, 58, 28, 255)   /* texto sobre los paneles claros (base_popup) */
 
@@ -90,35 +91,170 @@ static void help(const char *t) { text_draw(SCR_W / 2, SCR_H - 16, FONT_S, t, RG
 
 static int daily_ready(void) { return meta.ndaily > 0 && (unsigned)today_ymd() != sv.daily_last; }
 
-/* ---------------------------------------------------------------- inicio */
-enum { H_PLAY, H_LEVELS, H_CLASSIC, H_SHOP, H_DAILY, H_SETTINGS, H_COUNT };
-static const char *home_labels[H_COUNT] = {"JUGAR", "NIVELES", "CLASICO", "TIENDA", "DIARIO", "AJUSTES"};
+/* ---------------------------------------------------------------- piezas de las pantallas de la 14.2.9
+ * Las pantallas del original son de 1920x1080: en la PSP todo va a 1/4 (480x270), con las mismas posiciones. */
+static void wrect(int ui, float cx, float cy, float w, float h, uint32_t c)
+{
+    int id = WSPR(ui);
+    if (id >= 0) gfx_sprite_rect(&world, id, cx - w / 2, cy - h / 2, w, h, c);
+}
+static void wfit(int ui, float cx, float cy, float w, float h, uint32_t c)
+{
+    int id = WSPR(ui);
+    if (id >= 0) gfx_sprite_fit(&world, id, cx, cy, w, h, c);
+}
+static int sui(int k) { return k >= 0 && k < 32 ? meta.shop_ui[k] : -1; }
+static void srect(int k, float cx, float cy, float w, float h, uint32_t c)
+{
+    int id = sui(k);
+    if (id >= 0) gfx_sprite_rect(&shop_sheet, id, cx - w / 2, cy - h / 2, w, h, c);
+}
+static void sfit(int k, float cx, float cy, float w, float h, uint32_t c)
+{
+    int id = sui(k);
+    if (id >= 0) gfx_sprite_fit(&shop_sheet, id, cx, cy, w, h, c);
+}
+static float pulse(int on) { return on ? 1.08f + 0.04f * sinf(gtime * 6) : 1.0f; }
+static int secs_to_midnight(void) { return 86400 - plat_secs_of_day(); }
+static void hms(char *b, int n, int s)
+{
+    if (s < 0) s = 0;
+    snprintf(b, n, "%02d:%02d:%02d", s / 3600, s / 60 % 60, s % 60);
+}
+
+/* cruceta entre botones colocados libremente: el mas cercano en esa direccion */
+typedef struct { float x, y; int on; } NavPt;
+static int nav_move(const NavPt *p, int n, int cur, unsigned in)
+{
+    int dx = in & IN_LEFT ? -1 : in & IN_RIGHT ? 1 : 0, dy = in & IN_UP ? -1 : in & IN_DOWN ? 1 : 0;
+    if (!dx && !dy) return cur;
+    int best = cur;
+    float bs = 1e9f;
+    for (int i = 0; i < n; i++) {
+        if (!p[i].on || i == cur) continue;
+        float ex = p[i].x - p[cur].x, ey = p[i].y - p[cur].y;
+        float along = dx ? ex * dx : ey * dy, perp = dx ? fabsf(ey) : fabsf(ex);
+        if (along <= 4) continue;
+        float sc = along + perp * 2;
+        if (sc < bs) { bs = sc; best = i; }
+    }
+    return best;
+}
+
+static int pack_valid(int k);
+static int pack_index(int id)
+{
+    for (int k = 0; k < meta.npack; k++)
+        if (meta.pack[k].id == id) return k;
+    return -1;
+}
+static int limited_pack(void)
+{
+    for (int k = 0; k < meta.npack; k++)
+        if (meta.pack[k].timer) return k;
+    return -1;
+}
+static void open_packs(int k);
+
+/* ---------------------------------------------------------------- inicio (HomeController, screens/home de la 14.2.9)
+ * Logo_v12 arriba; abajo el banner del paquete de temporada (BundleScrollController, va pasando solo), el boton de
+ * jugar con "Lv.N" y "Snake Retro" con su cuenta atras; arriba a la derecha la oferta limitada, aspectos y ajustes, y
+ * debajo la tienda y el diario. NIVELES (el selector de manzanas) va como boton extra debajo del diario. */
+enum { HM_BUNDLE, HM_PLAY, HM_RETRO, HM_OFFER, HM_SKIN, HM_SETTINGS, HM_SHOP, HM_DAILY, HM_LEVELS, HM_N };
+static const float HM_XY[HM_N][2] = {{86, 170}, {241, 178}, {393, 178}, {345, 22}, {417, 22},
+                                     {455, 22}, {455, 63}, {455, 100}, {24, 24}};
+static const char *HM_NAME[HM_N] = {"Paquete de temporada", "Jugar", "Snake Retro (modo clasico)", "Oferta limitada",
+                                    "Aspectos y fondos", "Ajustes", "Tienda", "Recompensa diaria", "Niveles"};
+static int home_sel = HM_PLAY;
+static float bundle_t;
+static int bundle_k;
+static const int SEASON_ID[4] = {11, 13, 14, 15};
+static const int SEASON_BANNER[4] = {UI_BANNER_LUNAR, UI_BANNER_SUMMER, UI_BANNER_PRIDE, UI_BANNER_WORLDCUP};
+
+static int seasons(int *ks)
+{
+    int n = 0;
+    for (int i = 0; i < 4; i++)
+        if (pack_index(SEASON_ID[i]) >= 0) ks[n++] = i;
+    return n;
+}
+
+static void home_nav(NavPt *p)
+{
+    int ks[4];
+    for (int i = 0; i < HM_N; i++) p[i] = (NavPt){HM_XY[i][0], HM_XY[i][1], 1};
+    p[HM_BUNDLE].on = seasons(ks) > 0 && WSPR(UI_BANNER_LUNAR) >= 0;
+    p[HM_OFFER].on = limited_pack() >= 0 && pack_valid(limited_pack());
+}
 
 static void home_draw(void)
 {
     gfx_bg(home_tex.pixels ? &home_tex : &bg_tex, WHITE);
-    int logo = WSPR(UI_LOGO);
-    if (logo >= 0) {
-        float s = 150.0f / (spr_w(&world, logo) > 0 ? spr_w(&world, logo) : 1);
-        if (spr_h(&world, logo) * s > 110) s = 110 / spr_h(&world, logo);
-        gfx_sprite(&world, logo, 130, 92 + sinf(gtime * 2) * 3, s, 0, 0, WHITE);
-    } else
-        text_draw(130, 70, FONT_XL, "Snake Puzzle", WHITE, 1);
-    draw_snake_preview(130, 178, 22, 5);
-    for (int i = 0; i < H_COUNT; i++) {
-        char b[48];
-        if (i == H_PLAY) snprintf(b, sizeof(b), T("JUGAR  (nivel %d)"), sv.cur_level + 1);
-        else snprintf(b, sizeof(b), "%s%s", T(home_labels[i]), i == H_DAILY && daily_ready() ? "  (!)" : "");
-        draw_button(270, 26 + i * 37, 190, 32, b, sel == i, 1);
+    NavPt p[HM_N];
+    home_nav(p);
+    if (!p[home_sel].on) home_sel = HM_PLAY;
+    char b[48];
+    if (WSPR(UI_LOGO) >= 0) wfit(UI_LOGO, 241, 44, 150, 66, WHITE);
+    else text_draw(241, 30, FONT_XL, "Snake Puzzle", WHITE, 1);
+    /* paquete de temporada */
+    int ks[4], ns = seasons(ks);
+    if (p[HM_BUNDLE].on) {
+        int i = ks[bundle_k % ns], k = pack_index(SEASON_ID[i]);
+        float s = pulse(home_sel == HM_BUNDLE);
+        wrect(SEASON_BANNER[i], 86, 170, 116 * s, 77 * s, WHITE);
+        if (!pack_valid(k)) wrect(UI_TAG_SOLDOUT, 86, 167, 77, 34, WHITE);
+        else {
+            wrect(UI_TAG_SALEOFF, 142, 139, 22, 22, WHITE);
+            text_draw(142, 139 - text_height(FONT_S) / 2, FONT_S, T("NUEVO"), WHITE, 1);
+        }
+        for (int j = 0; j < ns; j++)
+            gfx_fill(86 - (ns - 1) * 5 + j * 10 - 2, 214, 5, 5, j == bundle_k % ns ? WHITE : RGBA(255, 255, 255, 100));
     }
+    /* jugar */
+    float s = pulse(home_sel == HM_PLAY);
+    wrect(UI_BTN_PLAY, 241, 178, 120 * s, 75 * s, WHITE);
+    snprintf(b, sizeof(b), "Lv.%d", sv.cur_level + 1);
+    text_draw(241, 132, FONT_L, b, WHITE, 1);
+    /* Snake Retro */
+    s = pulse(home_sel == HM_RETRO);
+    wrect(UI_BTN_MINIGAME, 393, 178, 116 * s, 69 * s, WHITE);
+    text_draw(393, 132, FONT_L, "Snake Retro", WHITE, 1);
+    wrect(UI_BASE_TIME, 393, 209, 58, 22, WHITE);
+    hms(b, sizeof(b), secs_to_midnight());
+    text_draw(393, 209 - text_height(FONT_S) / 2, FONT_S, b, WHITE, 1);
+    /* botones redondos */
+    if (p[HM_OFFER].on) {
+        s = pulse(home_sel == HM_OFFER);
+        wrect(UI_ICON_LIMITEDOFFER, 345, 22, 32 * s, 26 * s, WHITE);
+        wrect(UI_BASE_TIME, 344, 36, 29, 9, WHITE);
+        text_draw(344, 36 - text_height(FONT_S) / 2, FONT_S, T("OFERTA"), WHITE, 1);
+    }
+    s = pulse(home_sel == HM_SKIN);
+    wrect(UI_BTN_SKIN, 417, 22, 31 * s, 31 * s, WHITE);
+    s = pulse(home_sel == HM_SETTINGS);
+    wrect(UI_BTN_SETTINGS, 455, 22, 31 * s, 31 * s, WHITE);
+    s = pulse(home_sel == HM_SHOP);
+    wrect(UI_ICON_SHOP, 455, 63, 31 * s, 31 * s, WHITE);
+    s = pulse(home_sel == HM_DAILY);
+    wrect(UI_ICON_DAILY, 455, 100, 31 * s, 31 * s, WHITE);
+    if (daily_ready()) wrect(UI_ICON_NOTI, 465, 90, 9, 9, WHITE);
+    else {
+        wrect(UI_BG_MASK, 455, 114, 30, 9, WHITE);
+        hms(b, sizeof(b), secs_to_midnight());
+        text_draw(455, 114 - text_height(FONT_S) / 2, FONT_S, b, WHITE, 1);
+    }
+    s = pulse(home_sel == HM_LEVELS);
+    if (WSPR(UI_APPLE_GREEN) >= 0) wfit(UI_APPLE_GREEN, 24, 22, 28 * s, 30 * s, WHITE);
+    text_draw(24, 37, FONT_S, T("NIVELES"), WHITE, 1);
     counters(SCR_H - 40);
-    help(T(BTN_X " Aceptar   Cruceta Elegir"));
+    snprintf(b, sizeof(b), "%s   " BTN_X " %s", T(HM_NAME[home_sel]), T("Aceptar"));
+    help(b);
 #if DEVLOG
     {
         /* para saber sin buscar archivos si el devlog se escribe y si el audio arranco */
-        char b[200];
-        snprintf(b, sizeof(b), "PRUEBAS | devlog: %s (%s)", dlog_path(), dlog_ok() ? "OK" : "SIN ESCRIBIR");
-        text_draw(SCR_W - 4, SCR_H - 44, FONT_S, b, RGBA(255, 230, 120, 255), 2);
+        char d[200];
+        snprintf(d, sizeof(d), "PRUEBAS | devlog: %s (%s)", dlog_path(), dlog_ok() ? "OK" : "SIN ESCRIBIR");
+        text_draw(SCR_W - 4, SCR_H - 44, FONT_S, d, RGBA(255, 230, 120, 255), 2);
         text_draw(SCR_W - 4, SCR_H - 30, FONT_S, audio_status(), RGBA(255, 230, 120, 255), 2);
     }
 #endif
@@ -126,20 +262,29 @@ static void home_draw(void)
 
 static void home_input(unsigned in)
 {
-    if (in & IN_UP) sel = (sel + H_COUNT - 1) % H_COUNT;
-    if (in & IN_DOWN) sel = (sel + 1) % H_COUNT;
+    NavPt p[HM_N];
+    home_nav(p);
+    if (!p[home_sel].on) home_sel = HM_PLAY;
+    home_sel = nav_move(p, HM_N, home_sel, in);
     if (!(in & IN_CROSS)) return;
     play_sfx(SFX_CLICK);
-    switch (sel) {
-    case H_PLAY: play_start(sv.cur_level, 0); break;
-    case H_LEVELS: {
+    switch (home_sel) {
+    case HM_BUNDLE: {
+        int ks[4], ns = seasons(ks);
+        if (ns) open_packs(pack_index(SEASON_ID[ks[bundle_k % ns]]));
+        break;
+    }
+    case HM_PLAY: play_start(sv.cur_level, 0); break;
+    case HM_RETRO: classic_start(); break;
+    case HM_OFFER: open_packs(limited_pack()); break;
+    case HM_SKIN: shop_tab = 0; sel = 0; set_state(GS_SHOP); break;
+    case HM_SETTINGS: sel = 0; confirm_reset = 0; set_state(GS_SETTINGS); break;
+    case HM_SHOP: open_packs(-1); break;
+    case HM_DAILY: sel = 0; set_state(GS_DAILY); break;
+    case HM_LEVELS: {
         int c = sv.cur_level < levels.count ? sv.cur_level : levels.count - 1;
         page = c / 15; sel = c % 15; set_state(GS_SELECT); break;
     }
-    case H_CLASSIC: classic_start(); break;
-    case H_SHOP: shop_tab = 0; sel = 0; set_state(GS_SHOP); break;
-    case H_DAILY: sel = 0; set_state(GS_DAILY); break;
-    case H_SETTINGS: sel = 0; confirm_reset = 0; set_state(GS_SETTINGS); break;
     }
 }
 
@@ -207,7 +352,7 @@ static void select_input(unsigned in)
     if (in & IN_L && page > 0) page--;
     if (in & IN_R && page + 1 < pages) page++;
     while (page * 15 + sel >= levels.count && sel > 0) sel--;
-    if (in & IN_CIRCLE) { play_sfx(SFX_CLICK); sel = H_LEVELS; set_state(GS_HOME); }
+    if (in & IN_CIRCLE) { play_sfx(SFX_CLICK); home_sel = HM_LEVELS; set_state(GS_HOME); }
     if (in & IN_CROSS) {
         int i = page * 15 + sel;
         if (level_open(i)) { play_sfx(SFX_CLICK); play_start(i, 0); }
@@ -220,42 +365,58 @@ static void select_input(unsigned in)
 }
 
 /* ---------------------------------------------------------------- pausa, superado y perdido */
-static void pause_draw(void)
+/* ---------------------------------------------------------------- ajustes (SettingsController, screens/settings)
+ * En la 14.2.9 no hay menu de pausa: el engranaje abre esta ventana (Popup_Setting_Gameplay) con Musica, Sonido
+ * (y Vibrar, que la PSP no tiene) y el boton Home. En el juego se abre con START; en el inicio, con el engranaje (alli
+ * el boton de abajo es BORRAR PARTIDA, del port). */
+static void settings_popup(int ingame)
 {
     gfx_fill(0, 0, SCR_W, SCR_H, RGBA(0, 0, 0, 120));
-    draw_panel(140, 30, 200, 215);
-    text_draw(SCR_W / 2, 40, FONT_L, T("PAUSA"), TXT_DARK, 1);
-    static const char *L[] = {"CONTINUAR", "REINICIAR", "NIVELES", "INICIO"};
-    for (int i = 0; i < 4; i++) draw_button(165, 76 + i * 38, 150, 32, T(L[i]), sel == i, 1);
-    gfx_sprite_fit(&world, WSPR(sv.sound ? UI_SOUND_ON : UI_SOUND_OFF), 172, 234, 30, 30, WHITE);
-    gfx_sprite_fit(&world, WSPR(sv.music ? UI_MUSIC_ON : UI_MUSIC_OFF), 308, 234, 30, 30, WHITE);
-    help(T(BTN_X " Aceptar   " BTN_SQ " Sonido   " BTN_TRI " Musica   START Seguir"));
+    if (WSPR(UI_POPUP_SETTING) >= 0) wrect(UI_POPUP_SETTING, 240, 122, 256, 175, WHITE);
+    else draw_panel(112, 35, 256, 175);
+    wrect(UI_TITLE_RATING, 242, 40, 219, 42, WHITE);
+    text_draw(242, 40 - text_height(FONT_L) / 2 - 2, FONT_L, T("AJUSTES"), WHITE, 1);
+    wrect(UI_BTN_CANCEL, 360, 40, 22, 22, WHITE);
+    text_draw(360, 50, FONT_S, BTN_O, WHITE, 1);
+    float s = pulse(sel == 0);
+    wfit(sv.music ? UI_MUSIC_ON : UI_MUSIC_OFF, 200, 104, 49 * s, 51 * s, WHITE);
+    text_draw(200, 132, FONT_M, T("Musica"), TXT_DARK, 1);
+    s = pulse(sel == 1);
+    wfit(sv.sound ? UI_SOUND_ON : UI_SOUND_OFF, 280, 104, 49 * s, 51 * s, WHITE);
+    text_draw(280, 132, FONT_M, T("Sonido"), TXT_DARK, 1);
+    if (ingame) draw_button(170, 166, 140, 40, T("INICIO"), sel == 2, 1);
+    else {
+        draw_button(170, 166, 140, 40, T(confirm_reset ? "PULSA OTRA VEZ" : "BORRAR PARTIDA"), sel == 2, 1);
+        char b[80];
+        unsigned m = sv.play_seconds / 60;
+        snprintf(b, sizeof(b), T("%d niveles superados | %uh %02um jugadas"), levels_won_count(), m / 60, m % 60);
+        text_draw(SCR_W / 2, 150, FONT_S, b, TXT_DARK, 1);
+    }
+    help(T(BTN_X " Cambiar   " BTN_O " Cerrar"));
 }
 
-static void toggle_audio(unsigned in)
+/* devuelve 1 si hay que cerrar la ventana */
+static int settings_nav(unsigned in)
 {
-    if (in & IN_SQUARE) { sv.sound ^= 1; audio_set_enabled(sv.sound, sv.music); game_save(); }
-    if (in & IN_TRIANGLE) { sv.music ^= 1; audio_set_enabled(sv.sound, sv.music); game_save(); }
+    if (in & (IN_LEFT | IN_RIGHT) && sel < 2) sel ^= 1;
+    if (in & IN_DOWN) { sel = 2; }
+    if (in & IN_UP && sel == 2) { sel = 0; confirm_reset = 0; }
+    if (in & IN_CIRCLE) return 1;
+    if (in & IN_CROSS) {
+        play_sfx(SFX_CLICK);
+        if (sel == 0) sv.music ^= 1;
+        if (sel == 1) sv.sound ^= 1;
+        if (sel < 2) { audio_set_enabled(sv.sound, sv.music); game_save(); }
+    }
+    return 0;
 }
+
+static void pause_draw(void) { settings_popup(1); }
 
 static void pause_input(unsigned in)
 {
-    if (in & IN_UP) sel = (sel + 3) % 4;
-    if (in & IN_DOWN) sel = (sel + 1) % 4;
-    toggle_audio(in);
-    if (in & (IN_START | IN_CIRCLE)) { set_state(GS_PLAY); return; }
-    if (!(in & IN_CROSS)) return;
-    play_sfx(SFX_CLICK);
-    switch (sel) {
-    case 0: set_state(GS_PLAY); break;
-    case 1: play_start(play_pos, 0); break;
-    case 2: {
-        int c = play_pos < levels.count ? play_pos : levels.count - 1;
-        page = c / 15; sel = c % 15; set_state(GS_SELECT); break;
-    }
-    case 3: sel = 0; set_state(GS_HOME); break;
-    }
-    if (gstate != GS_PAUSE && gstate != GS_SELECT) sel = 0;
+    if (settings_nav(in) || in & IN_START) { sel = 0; set_state(GS_PLAY); return; }
+    if (in & IN_CROSS && sel == 2) { sel = 0; set_state(GS_HOME); }
 }
 
 static void progress_bar(float x, float y, float w)
@@ -275,86 +436,156 @@ static void progress_bar(float x, float y, float w)
     if (icon >= 0) gfx_sprite_fit(&shop_sheet, icon, x + w + 26, y + 8, 40, 40, f >= 1 ? WHITE : RGBA(120, 120, 120, 255));
 }
 
+/* ---------------------------------------------------------------- superado (RewardProgressPopup + WinPopup)
+ * Si el nivel es nuevo y hay un aspecto o fondo en camino (SkinProgress), primero sale RewardProgressPopup: el titulo
+ * New Skin/New BG sobre Title_Base, rayos de luz y la silueta (progress_N) llenandose (full_N) hasta el nuevo %. Luego
+ * WinPopup: Banner_Win con 3 estrellas, "Nivel 07 COMPLETADO!", el top de jugadores y Siguiente, con las banderas. */
+static int win_phase;          /* 0 progreso, 1 ventana de superado */
+static float win_t, win_from, win_to;
+static int win_tier = -1;
+
+void ui_win_begin(int first)
+{
+    win_phase = 1;
+    win_t = 0;
+    win_tier = -1;
+    if (!first) return;
+    int won = levels_won_count();
+    for (int i = 0; i < meta.nprog; i++)
+        if (won >= meta.prog[i].start && won <= meta.prog[i].end) {
+            float n = meta.prog[i].end - meta.prog[i].start + 1;
+            win_tier = i;
+            win_from = (won - meta.prog[i].start) / n;
+            win_to = (won - meta.prog[i].start + 1) / n;
+            win_phase = 0;
+            break;
+        }
+}
+
+static void progress_popup_draw(void)
+{
+    gfx_fill(0, 0, SCR_W, SCR_H, RGBA(0, 0, 0, 150));
+    const ProgressDef *d = &meta.prog[win_tier];
+    for (int k = 0; k < 12; k++) {   /* LightRay */
+        float a = gtime * 0.6f + k * 0.5236f;
+        gfx_fill(240 + cosf(a) * 70 - 3, 146 + sinf(a) * 70 - 3, 6, 6, RGBA(255, 230, 120, 180));
+    }
+    wrect(UI_TITLE_BASE, 240, 63, 177, 51, WHITE);
+    if (WSPR(UI_NEWSKIN) >= 0) wfit(d->type ? UI_NEWBG : UI_NEWSKIN, 240, 57, 81, 17, WHITE);
+    else wfit(d->type ? UI_NEWBGUNLOCKED : UI_NEWSKINUNLOCKED, 240, 60, 110, 26, WHITE);
+    float f = win_from + (win_to - win_from) * (win_t < 1.2f ? win_t / 1.2f : 1);
+    int base = (d->type ? 22 : 0) + d->id * 2;
+    int a = d->id < 11 ? meta.prog_icon[base] : -1, b = d->id < 11 ? meta.prog_icon[base + 1] : -1;
+    /* ContentSkin 443x177 / ContentBg 504x314 del original, a 1/4 y con la proporcion del dibujo */
+    float bw = d->type ? 126 : 111, bh = d->type ? 79 : 44, w = bw, h = bh;
+    if (a >= 0 && shop_sheet.spr[a].w && shop_sheet.spr[a].h) {
+        float k = bw / shop_sheet.spr[a].w < bh / shop_sheet.spr[a].h ? bw / shop_sheet.spr[a].w : bh / shop_sheet.spr[a].h;
+        w = shop_sheet.spr[a].w * k;
+        h = shop_sheet.spr[a].h * k;
+    }
+    float x = 238 - w / 2, y = 146 - h / 2;
+    if (a >= 0) gfx_sprite_rect(&shop_sheet, a, x, y, w, h, WHITE);
+    if (b >= 0) gfx_sprite_rect_bottom(&shop_sheet, b, x, y, w, h, f, WHITE);
+    char t[16];
+    snprintf(t, sizeof(t), "%d%%", (int)(f * 100 + 0.5f));
+    text_draw(238, 148 - text_height(FONT_XL) / 2, FONT_XL, t, WHITE, 1);
+    /* boton de aspectos (Btn_Skin_Unlocked) a la derecha, como en el original */
+    wrect(UI_BTN_SKIN, 430, 37, 26, 26, WHITE);
+    if (f >= 1) wrect(UI_ICON_NOTI, 440, 28, 8, 8, WHITE);
+    help(T(BTN_X " Seguir"));
+}
+
 static void win_draw(void)
 {
+    if (win_phase == 0 && win_tier >= 0) {
+        progress_popup_draw();
+        return;
+    }
     gfx_fill(0, 0, SCR_W, SCR_H, RGBA(0, 0, 0, 110));
-    draw_panel(110, 40, 260, 200);
-    int ban = WSPR(UI_BANNER_WIN);
-    if (ban >= 0) gfx_sprite_rect(&world, ban, 140, 18, 200, 50, WHITE);
-    text_draw(SCR_W / 2, 30, FONT_L, T("SUPERADO!"), WHITE, 1);
+    wrect(UI_FLAG, 86, 31, 119, 58, WHITE);
+    wrect(UI_FLAG, 394, 31, 119, 58, WHITE);
+    if (WSPR(UI_POPUP_WIN) >= 0) wrect(UI_POPUP_WIN, 241, 124, 256, 182, WHITE);
+    else draw_panel(113, 33, 256, 182);
+    wrect(UI_BANNER_WIN, 242, 37, 216, 70, WHITE);
+    /* tres estrellas (Star_banner_win_on en el centro) */
+    float st = win_t < 0.6f ? win_t / 0.6f : 1;
+    wfit(UI_STAR, 199, 41, 34 * st, 33 * st, WHITE);
+    wfit(UI_STAR_BANNER_WIN_ON, 241, 31, 41 * st, 40 * st, WHITE);
+    wfit(UI_STAR, 280, 41, 34 * st, 33 * st, WHITE);
     char b[96];
-    snprintf(b, sizeof(b), T("Nivel %d completado"), play_pos + 1);
-    text_draw(SCR_W / 2, 74, FONT_M, b, TXT_DARK, 1);
-    /* top_player.txt: porcentaje de jugadores que no llegaron a este nivel */
+    snprintf(b, sizeof(b), T("Nivel %02d"), play_pos + 1);
+    text_draw(241, 78, FONT_XL, b, TXT_DARK, 1);
+    text_draw(241, 108, FONT_L, T("COMPLETADO!"), TXT_DARK, 1);
+    /* top_player.txt: porcentaje de jugadores (LbTopPlayer) */
     int pct = play_pos < meta.ntop ? meta.top[play_pos] : 0;
     if (pct) {
-        snprintf(b, sizeof(b), T("Mejor que el %d,%02d%% de los jugadores"), pct / 100, pct % 100);
-        text_draw(SCR_W / 2, 98, FONT_S, b, RGBA(200, 90, 30, 255), 1);
+        snprintf(b, sizeof(b), T("Estas en el top %d,%02d%% de jugadores"), pct / 100, pct % 100);
+        text_draw(241, 134, FONT_S, b, RGBA(200, 90, 30, 255), 1);
     }
-    progress_bar(140, 124, 150);
-    static const char *L[] = {"SIGUIENTE", "REPETIR", "INICIO"};
-    for (int i = 0; i < 3; i++) draw_button(130 + i * 75, 186, 70, 30, T(L[i]), sel == i, 1);
-    help(T(BTN_X " Aceptar   Cruceta Elegir"));
+    progress_bar(165, 147, 110);
+    draw_button(171, 168, 140, 40, T("SIGUIENTE"), 1, 1);
+    help(T(BTN_X " Siguiente   " BTN_O " Inicio"));
 }
 
 static void win_input(unsigned in)
 {
-    if (in & IN_LEFT) sel = (sel + 2) % 3;
-    if (in & IN_RIGHT) sel = (sel + 1) % 3;
+    if (win_phase == 0 && win_tier >= 0) {
+        if (in & (IN_CROSS | IN_CIRCLE) && win_t > 0.3f) { win_phase = 1; win_t = 0; }
+        return;
+    }
+    if (in & IN_CIRCLE) { play_sfx(SFX_CLICK); set_state(GS_HOME); return; }
     if (!(in & IN_CROSS)) return;
     play_sfx(SFX_CLICK);
-    if (sel == 0) play_start(play_pos + 1, 0);   /* tras el ultimo nivel sigue el bucle (UserLevelInfo) */
-    else if (sel == 1) play_start(play_pos, 0);
-    else set_state(GS_HOME);
-    sel = 0;
+    play_start(play_pos + 1, 0);   /* tras el ultimo nivel sigue el bucle (UserLevelInfo) */
 }
 
+/* ---------------------------------------------------------------- perdido (LoseController, screens/lose)
+ * Popup_Lose con Banner_Lose "Failed!", Icon_Lose y dos botones: Repetir (Btn_Green, Icon_Replay) y Saltar nivel
+ * (Btn_Blue, Icon_SkipLevel; en el original con anuncio, aqui gasta un salto). */
 static void lose_draw(void)
 {
     gfx_fill(0, 0, SCR_W, SCR_H, RGBA(0, 0, 0, 110));
-    draw_panel(110, 50, 260, 180);
-    int ban = WSPR(UI_BANNER_LOSE);
-    if (ban >= 0) gfx_sprite_rect(&world, ban, 140, 28, 200, 50, WHITE);
-    text_draw(SCR_W / 2, 40, FONT_L, T("OH, NO!"), WHITE, 1);
-    gfx_sprite_fit(&world, WSPR(UI_ICON_LOSE), SCR_W / 2, 112, 110, 60, WHITE);
-    static const char *L[] = {"REINTENTAR", "PISTA", "SALTAR", "INICIO"};
-    for (int i = 0; i < 4; i++) {
-        char b[32];
-        if (i == 1) snprintf(b, sizeof(b), T("PISTA (%d)"), sv.hints);
-        else if (i == 2) snprintf(b, sizeof(b), T("SALTAR (%d)"), sv.skips);
-        else snprintf(b, sizeof(b), "%s", T(L[i]));
-        draw_button(125 + (i % 2) * 118, 150 + (i / 2) * 36, 112, 30, b, sel == i,
-                    i == 1 ? sv.hints > 0 : i == 2 ? sv.skips > 0 : 1);
-    }
-    help(T(BTN_X " Aceptar   Cruceta Elegir"));
+    if (WSPR(UI_POPUP_LOSE) >= 0) wrect(UI_POPUP_LOSE, 240, 121, 256, 182, WHITE);
+    else draw_panel(112, 30, 256, 182);
+    wrect(UI_BANNER_LOSE, 242, 32, 217, 60, WHITE);
+    text_draw(244, 30 - text_height(FONT_L) / 2, FONT_L, T("FALLASTE!"), WHITE, 1);
+    wfit(UI_ICON_LOSE, 238, 110, 133, 46, WHITE);
+    float s = pulse(sel == 0);
+    wrect(UI_BTN_GREEN, 183, 182, 106 * s, 44 * s, WHITE);
+    wfit(UI_ICON_REPLAY, 150, 182, 22, 20, WHITE);
+    text_draw(193, 182 - text_height(FONT_M) / 2, FONT_M, T("Repetir"), WHITE, 1);
+    s = pulse(sel == 1);
+    wrect(UI_BTN_BLUE, 297, 182, 106 * s, 44 * s, sv.skips > 0 ? WHITE : RGBA(150, 150, 150, 255));
+    wfit(UI_ICON_SKIPLEVEL, 263, 182, 25, 19, WHITE);
+    char b[32];
+    snprintf(b, sizeof(b), T("Saltar (%d)"), sv.skips);
+    text_draw(306, 182 - text_height(FONT_M) / 2, FONT_M, b, WHITE, 1);
+    help(T(BTN_X " Aceptar   " BTN_O " Repetir   Cruceta Elegir"));
 }
 
 static void lose_input(unsigned in)
 {
-    if (in & (IN_LEFT | IN_RIGHT)) sel ^= 1;
-    if (in & (IN_UP | IN_DOWN)) sel ^= 2;
+    if (in & (IN_LEFT | IN_RIGHT)) sel = !sel;
     if (in & IN_CIRCLE) { sel = 0; play_start(play_pos, 0); return; }
     if (!(in & IN_CROSS)) return;
     play_sfx(SFX_CLICK);
-    int s = sel;
-    sel = 0;
-    if (s == 0) play_start(play_pos, 0);
-    else if (s == 1) {
-        if (sv.hints > 0) { sv.hints--; game_save(); play_start(play_pos, 1); }
-        else sel = 1;
-    } else if (s == 2) {
-        if (sv.skips > 0) {
-            sv.skips--;
-            play_skip();
-            play_start(play_pos + 1, 0);
-        } else sel = 2;
-    } else set_state(GS_HOME);
+    if (sel == 0) { play_start(play_pos, 0); return; }
+    if (sv.skips > 0) {
+        sv.skips--;
+        sel = 0;
+        play_skip();
+        play_start(play_pos + 1, 0);
+    } else {
+        play_sfx(SFX_STOP);
+        ui_message(T("No te quedan saltos: consiguelos en la tienda con fichas"), 2.0f);
+    }
 }
 
 /* ---------------------------------------------------------------- tienda */
 void ui_open_shop(void)
 {
     shop_tab = 0;
+    home_sel = HM_SKIN;
     sel = 0;
     set_state(GS_SHOP);
 }
@@ -434,7 +665,6 @@ static int item_need(int type, int id, const char **why)
 /* ---- packs (ShopIAPController, BundleEvent / SummerBundle / PrideBundle / WorldCupBundle, LimitedOffer, SpecialBundle,
  * NoAdsBundle): en la PSP se pagan con fichas. En la 14.2.9 los de temporada salen siempre (seasonal_pack_show =
  * "1,2,3,4") hasta comprarlos (HideXBundle); la oferta limitada (paquete con temporizador) tambien se ofrece. ---- */
-static int pack_list[24], pack_count;
 
 static int pack_has(int k, int type, int id)
 {
@@ -461,13 +691,6 @@ static int pack_valid(int k)
         if (t == RW_BG && bg_exists(q) && !bg_available(q)) useful = 1;
     }
     return useful;
-}
-
-static void pack_build(void)
-{
-    pack_count = 0;
-    for (int k = 0; k < meta.npack && pack_count < 24; k++)
-        if (pack_valid(k)) pack_list[pack_count++] = k;
 }
 
 /* precio en fichas: 1 por pista o salto (el original da 1 pista por anuncio visto) y 5 por aspecto o fondo, con
@@ -517,47 +740,149 @@ static void pack_text(int k, char *b, int n)
     }
 }
 
+/* ---- tienda de pago (ShopIAPController, screens/shopiap): tarjetas en fila; aqui se paga con fichas ----
+ * Orden del original: paquete especial, los de temporada (Bajo el mar, Desfile arcoiris, Gol de oro, Ano Nuevo
+ * Lunar), la oferta limitada y los de pistas (con la pista "gratis" por anuncio, que aqui cuesta 1 ficha). Los de
+ * temporada comprados desaparecen (HideXBundle); los anuncios (No Ads) no existen en la PSP. */
+typedef struct { int pack, card; } Card;
+#define FREE_HINT -2
+static Card cards[24];
+static int ncards;
+
+static void cards_build(void)
+{
+    static const int order[] = {2, 13, 14, 15, 11};
+    static const int art[] = {SU_CARD_SPECIAL, SU_CARD_SUMMER, SU_CARD_PRIDE, SU_CARD_WORLDCUP, SU_CARD_LUNAR};
+    ncards = 0;
+    for (int i = 0; i < 5; i++) {
+        int k = pack_index(order[i]);
+        if (k >= 0 && pack_valid(k)) cards[ncards++] = (Card){k, art[i]};
+    }
+    int lk = limited_pack();
+    if (lk >= 0 && pack_valid(lk)) cards[ncards++] = (Card){lk, SU_CARD_DUCK};
+    cards[ncards++] = (Card){FREE_HINT, SU_BASEPACK};
+    for (int id = 3; id <= 7; id++) {
+        int k = pack_index(id);
+        if (k >= 0 && pack_valid(k) && ncards < 24) cards[ncards++] = (Card){k, SU_BASEPACK};
+    }
+}
+
+static int card_price(const Card *c) { return c->pack == FREE_HINT ? 1 : pack_price(c->pack); }
+
+static int pack_hints(int k)
+{
+    for (int j = 0; j < meta.pack[k].n; j++)
+        if (meta.pack[k].type[j] == RW_HINT) return meta.pack[k].qty[j];
+    return 0;
+}
+
+static void open_packs(int k)
+{
+    shop_tab = 2;
+    sel = 0;
+    cards_build();
+    for (int i = 0; i < ncards; i++)
+        if (cards[i].pack == k) sel = i;
+    set_state(GS_SHOP);
+}
+
+static void card_draw(const Card *c, float cx, float cy, int on)
+{
+    float s = on ? 1.0f : 0.8f;
+    uint32_t col = on ? WHITE : RGBA(170, 170, 170, 255);
+    char b[48];
+    if (c->card == SU_BASEPACK) {
+        /* BasePack: titulo, icono de pista y cantidad */
+        float w = 92 * s, h = 90 * s;
+        srect(SU_BASEPACK, cx, cy, w, h, col);
+        int q = c->pack == FREE_HINT ? 1 : pack_hints(c->pack);
+        static const struct { int q; const char *n; } names[] = {{1, "Pista"}, {3, "Pistas mini"}, {6, "Pistas pequeno"},
+                                                                 {10, "Pistas medio"}, {15, "Pistas grande"}, {25, "Pistas extremo"}};
+        const char *nm = "Pistas";
+        for (unsigned i = 0; i < sizeof(names) / sizeof(names[0]); i++)
+            if (names[i].q == q) nm = names[i].n;
+        text_draw(cx, cy - 37 * s, FONT_S, T(nm), WHITE, 1);
+        sfit(SU_ICON_HINT, cx - 9 * s, cy - 3 * s, 29 * s, 29 * s, col);
+        snprintf(b, sizeof(b), "x%d", q);
+        text_draw(cx + 16 * s, cy - 9 * s, FONT_M, b, WHITE, 1);
+        /* boton verde con el precio (btn_green) */
+        int g = WSPR(UI_BTN_GREEN);
+        if (g >= 0) gfx_sprite_rect(&world, g, cx - 28 * s, cy + 22 * s, 56 * s, 20 * s, col);
+        snprintf(b, sizeof(b), T("%d fichas"), card_price(c));
+        text_draw(cx, cy + 32 * s - text_height(FONT_S) / 2, FONT_S, b, WHITE, 1);
+        return;
+    }
+    int id = sui(c->card);
+    float iw = id >= 0 ? shop_sheet.spr[id].w : 100, ih = id >= 0 ? shop_sheet.spr[id].h : 100;
+    float k = 150 * s / ih;
+    if (iw * k > 190 * s) k = 190 * s / iw;
+    srect(c->card, cx, cy, iw * k, ih * k, col);
+    if (c->card == SU_CARD_SPECIAL) {   /* el texto de la tarjeta especial lo pone el juego (TMP) */
+        text_draw(cx, cy - 52 * s, FONT_S, T("Paquete especial"), WHITE, 1);
+        int sk = 0, hn = 0;
+        for (int j = 0; j < meta.pack[c->pack].n; j++) {
+            if (meta.pack[c->pack].type[j] == RW_SKIP) sk = meta.pack[c->pack].qty[j];
+            if (meta.pack[c->pack].type[j] == RW_HINT) hn = meta.pack[c->pack].qty[j];
+        }
+        snprintf(b, sizeof(b), "x%d", sk);
+        text_draw(cx - 21 * s, cy + 18 * s, FONT_M, b, WHITE, 1);
+        snprintf(b, sizeof(b), "x%d", hn);
+        text_draw(cx + 22 * s, cy + 18 * s, FONT_M, b, WHITE, 1);
+    }
+    if (c->card == SU_CARD_DUCK) text_draw(cx + 10 * s, cy - 42 * s, FONT_S, T("OFERTA"), WHITE, 1);
+    /* el precio va en el boton verde de la tarjeta (Price Text: -216 en la especial, unos -270 en las demas) */
+    snprintf(b, sizeof(b), T("%d fichas"), card_price(c));
+    float py = cy + (c->card == SU_CARD_SPECIAL ? 216 : 270) / 4.0f * k;   /* original/4 a la escala de la tarjeta */
+    text_draw(cx, py - text_height(FONT_M) / 2, FONT_M, b, sv.tokens >= card_price(c) ? WHITE : RGBA(255, 170, 170, 255), 1);
+}
+
 static void packs_draw(void)
 {
-    pack_build();
-    if (sel >= pack_count) sel = pack_count ? pack_count - 1 : 0;
-    int first = sel > 6 ? sel - 6 : 0;   /* 7 a la vista */
-    for (int r = first; r < pack_count && r < first + 7; r++) {
-        int k = pack_list[r];
-        float y = 40 + (r - first) * 25;
-        gfx_fill(20, y, 440, 23, r == sel ? RGBA(250, 200, 40, 200) : RGBA(0, 0, 0, 110));
-        char b[120];
-        pack_text(k, b, sizeof(b));
-        int skin = -1;
-        for (int j = 0; j < meta.pack[k].n; j++)
-            if (meta.pack[k].type[j] == RW_SKIN && skin_exists(meta.pack[k].qty[j])) skin = meta.pack[k].qty[j];
-        if (skin >= 0 && skin_icon(skin) >= 0) gfx_sprite_fit(&shop_sheet, skin_icon(skin), 36, y + 11, 22, 22, WHITE);
-        else if (meta.pack[k].timer && WSPR(UI_ICON_LIMITEDOFFER) >= 0)
-            gfx_sprite_fit(&world, WSPR(UI_ICON_LIMITEDOFFER), 36, y + 11, 22, 22, WHITE);
-        else gfx_sprite_fit(&world, WSPR(UI_ICON_HINT), 36, y + 11, 20, 20, WHITE);
-        text_draw(54, y + 3, FONT_M, b, WHITE, 0);
-        snprintf(b, sizeof(b), T("%d fichas"), pack_price(k));
-        text_draw(450, y + 3, FONT_M, b, sv.tokens >= pack_price(k) ? RGBA(150, 255, 150, 255) : RGBA(255, 150, 150, 255), 2);
+    cards_build();
+    if (sel >= ncards) sel = ncards - 1;
+    if (sel < 0) sel = 0;
+    text_draw(SCR_W / 2, 4, FONT_L, T("TIENDA"), WHITE, 1);
+    /* la elegida en el centro y las demas a los lados */
+    float x = 240;
+    for (int i = sel; i >= 0 && x > -120; i--) {
+        float w = cards[i].card == SU_BASEPACK ? 92 : 170;
+        if (i != sel) x -= w * 0.8f / 2 + 10;
+        card_draw(&cards[i], x, 112, i == sel);
+        x -= w * (i == sel ? 1.0f : 0.8f) / 2;
     }
-    if (first > 0) text_draw(SCR_W / 2, 30, FONT_S, "^", WHITE, 1);
-    if (first + 7 < pack_count) text_draw(SCR_W / 2, 214, FONT_S, "v", WHITE, 1);
-    if (!pack_count) text_draw(SCR_W / 2, 120, FONT_M, T("No hay paquetes"), WHITE, 1);
+    x = 240;
+    for (int i = sel + 1; i < ncards && x < 600; i++) {
+        float wp = cards[i - 1].card == SU_BASEPACK ? 92 : 170, w = cards[i].card == SU_BASEPACK ? 92 : 170;
+        x += wp * (i - 1 == sel ? 1.0f : 0.8f) / 2 + 10 + w * 0.8f / 2;
+        card_draw(&cards[i], x, 112, 0);
+    }
+    counters(SCR_H - 40);
+    help(T(BTN_X " Comprar con fichas   " BTN_O " Volver   L/R Pestana"));
 }
 
 static void packs_buy(void)
 {
-    pack_build();
-    if (sel >= pack_count) sel = pack_count - 1;
-    if (sel < 0) return;
-    int k = pack_list[sel], price = pack_price(k);
+    cards_build();
+    if (sel >= ncards || sel < 0) return;
+    Card c = cards[sel];
+    int price = card_price(&c);
     if (sv.tokens < price) {
         play_sfx(SFX_STOP);
         ui_message(T("Faltan fichas: ganas 1 por cada nivel nuevo superado"), 2.5f);
         return;
     }
-    char b[100], m[128];
-    pack_text(k, b, sizeof(b));   /* antes de comprar: luego el paquete puede quedar agotado */
     sv.tokens -= price;
+    if (c.pack == FREE_HINT) {
+        sv.hints++;
+        play_sfx(SFX_REWARD);
+        ui_message(T("+1 pista"), 1.5f);
+        dlog("TIENDA pista suelta por 1 ficha");
+        game_save();
+        return;
+    }
+    char b[100], m[128];
+    pack_text(c.pack, b, sizeof(b));
+    int k = c.pack;
     for (int j = 0; j < meta.pack[k].n; j++) {
         int t = meta.pack[k].type[j], q = meta.pack[k].qty[j];
         if (t == RW_HINT) sv.hints += q;
@@ -572,93 +897,132 @@ static void packs_buy(void)
     game_save();
 }
 
+/* ---- aspectos y fondos (ShopController, screens/shop): la serpiente sobre la plataforma a la izquierda y el panel de
+ * casillas (ShopItemUI) a la derecha, 3 por fila. Cada casilla: Slot_Unlocked (Slot_Highlight la equipada, con
+ * TickIcon); si esta bloqueada, Base_Lock con candado y su texto: "Lv N" (progreso), "Special" (evento o paquete),
+ * "Limited" (oferta limitada), "Day N" (recompensa diaria) o las fichas puestas (los anuncios del original). Los
+ * adornos: calabaza (aspecto 15, fondo 8), Navidad (21, 9), farolillo (27, 11), New (30-32, 14-16), VIP (33, 17). */
+static void item_label(int type, int id, char *b, int n)
+{
+    b[0] = 0;
+    for (int i = 0; i < meta.nprog; i++)
+        if (meta.prog[i].type == type && meta.prog[i].id == id) { snprintf(b, n, "Lv %d", meta.prog[i].end); return; }
+    const ShopItemDef *d = item_def(type, id);
+    if (!d) {
+        int k = pack_of_item(type, id);
+        snprintf(b, n, "%s", T(k >= 0 && meta.pack[k].timer ? "Limitado" : "Especial"));
+        return;
+    }
+    if (d->state == 6) { snprintf(b, n, "%s", T("Especial")); return; }
+    if (d->state == 4)
+        for (int i = 0; i < meta.ndaily; i++)
+            if (meta.daily[i].kind == 1 && meta.daily[i].value == id) { snprintf(b, n, T("Dia %d"), i + 1); return; }
+    const char *why;
+    int need = item_need(type, id, &why);
+    if (need > 0) snprintf(b, n, "%d/%d", type ? sv.bg_paid[id] : sv.skin_paid[id], need);
+}
+
+static int item_tag(int type, int id)
+{
+    if ((type == 0 && id == 15) || (type && id == 8)) return SU_TAG_HALLOWEEN;
+    if ((type == 0 && id == 21) || (type && id == 9)) return SU_TAG_XMAS;
+    if ((type == 0 && id == 27) || (type && id == 11)) return SU_TAG_LUNAR;
+    if ((type == 0 && id == 33) || (type && id == 17)) return SU_TAG_VIP;
+    if ((type == 0 && id >= 30 && id <= 32) || (type && id >= 14 && id <= 16)) return SU_TAG_NEW;
+    return -1;
+}
+
 static void shop_draw(void)
 {
-    if (shop_tab) {
-        static int prev = -1;
-        int id = shop_list[sel];
-        if (prev != id && bg_available(id)) { /* vista previa del fondo elegido */ }
-        prev = id;
-    }
     gfx_bg(&bg_tex, WHITE);
-    gfx_fill(0, 0, SCR_W, SCR_H, RGBA(0, 0, 0, 70));
+    if (shop_tab == 2) {
+        srect(SU_BACK, 22, 19, 23, 23, WHITE);
+        packs_draw();
+        return;
+    }
     shop_build();
     if (sel >= shop_count) sel = shop_count - 1;
     if (sel < 0) sel = 0;
-    text_draw(120, 4, FONT_L, T("TIENDA"), WHITE, 1);
-    draw_button(196, 4, 90, 26, T("ASPECTOS"), shop_tab == 0, 1);
-    draw_button(290, 4, 90, 26, T("FONDOS"), shop_tab == 1, 1);
-    draw_button(384, 4, 90, 26, "PACKS", shop_tab == 2, 1);
-    if (shop_tab == 2) {
-        packs_draw();
-        counters(SCR_H - 40);
-        help(T(BTN_X " Comprar con fichas   " BTN_O " Volver   L/R Pestana"));
-        return;
+    srect(SU_BACK, 22, 19, 23, 23, WHITE);
+    text_draw(22, 31, FONT_S, BTN_O, WHITE, 1);
+    /* plataforma con la serpiente equipada y su manzana (SnakeShop, AppleShop) */
+    srect(SU_GROUND, 125, 138, 124, 41, WHITE);
+    draw_snake_preview(104, 113, 24, 3);
+    if (SK_APPLE < skin_sheet.nspr) gfx_sprite(&skin_sheet, SK_APPLE, 166, 114, 26, 0, 0, WHITE);
+    /* panel con las pestanas */
+    srect(SU_POPUP, 339, 130, 228, 163, WHITE);
+    int t0 = shop_tab == 0;
+    srect(SU_TAB_UNSEL, t0 ? 383 : 288, 38, 91, 32, WHITE);
+    sfit(t0 ? SU_ICON_BG : SU_ICON_SKIN, t0 ? 383 : 288, 38, 26, 23, WHITE);
+    srect(SU_TAB_SEL, t0 ? 288 : 383, 34, 94, 40, WHITE);
+    sfit(t0 ? SU_ICON_SKIN : SU_ICON_BG, t0 ? 288 : 383, 32, 33, 28, WHITE);
+    text_draw(t0 ? 383 : 288, 54, FONT_S, "L/R", RGBA(110, 70, 40, 255), 1);
+    /* casillas: 3 por fila, 2 filas a la vista */
+    int first_row = sel / 3 > 1 ? sel / 3 - 1 : 0;
+    int rows = (shop_count + 2) / 3;
+    for (int k = first_row * 3; k < shop_count && k < first_row * 3 + 6; k++) {
+        int id = shop_list[k];
+        float x = 271 + (k % 3) * 65.5f, y = 97 + (k / 3 - first_row) * 70;
+        int own = shop_tab ? bg_available(id) : skin_available(id);
+        int eq = (shop_tab ? sv.bg : sv.skin) == id;
+        float s = pulse(k == sel);
+        srect(eq ? SU_SLOT_HL : SU_SLOT, x, y, 56 * s, 64 * s, WHITE);
+        item_icon(shop_tab, id, x, y - 2, 46 * s, 54 * s, WHITE);
+        if (!own) {
+            char b[24];
+            srect(SU_BASE_LOCK, x, y, 56 * s, 64 * s, WHITE);
+            sfit(SU_LOCK, x - 21 * s, y - 26 * s, 10, 12, WHITE);
+            item_label(shop_tab, id, b, sizeof(b));
+            int lim = !strcmp(b, T("Limitado"));
+            text_draw(x, y + 17 * s, FONT_S, b, lim ? RGBA(255, 220, 60, 255) : WHITE, 1);
+        }
+        int tg = item_tag(shop_tab, id);
+        if (tg >= 0) sfit(tg, x - 20 * s, y - 28 * s, tg == SU_TAG_NEW || tg == SU_TAG_VIP ? 24 : 15, 14, WHITE);
+        if (eq) wfit(UI_TICKICON, x + 23 * s, y - 27 * s, 15, 15, WHITE);
+        if (k == sel) gfx_fill(x - 28 * s, y + 31 * s, 56 * s, 2, RGBA(250, 200, 40, 255));
     }
-    /* vista previa */
-    draw_panel(8, 40, 200, 196);
+    /* barra de desplazamiento (Scroller / Scroller2) */
+    srect(SU_SCROLLER, 441, 130, 5, 134, WHITE);
+    if (rows > 2) {
+        float hh = 134 * 2.0f / rows, yy = 63 + (134 - hh) * first_row / (float)(rows - 2);
+        srect(SU_SCROLLER2, 441, yy + hh / 2, 6, hh, WHITE);
+    }
+    /* lo que hace falta para el elegido */
     int id = shop_list[sel];
-    if (shop_tab == 0 && id == sv.skin) draw_snake_preview(108, 112, 26, 5);
-    else {
-        item_icon(shop_tab, id, 108, 112, shop_tab ? 170 : 110, 110, WHITE);
-    }
-    char b[64];
     int owned = shop_tab ? bg_available(id) : skin_available(id);
     int equipped = shop_tab ? sv.bg == id : sv.skin == id;
     const char *why = NULL;
     int need = owned ? 0 : item_need(shop_tab, id, &why);
+    char b[64];
     if (equipped) snprintf(b, sizeof(b), "%s", T("EQUIPADO"));
     else if (owned) snprintf(b, sizeof(b), "%s", T(BTN_X " Equipar"));
     else if (need > 0) snprintf(b, sizeof(b), T(BTN_X " Pagar ficha (%d/%d)"), shop_tab ? sv.bg_paid[id] : sv.skin_paid[id], need);
     else snprintf(b, sizeof(b), "%s", T("Bloqueado"));
-    text_draw(108, 182, FONT_M, b, TXT_DARK, 1);
-    if (!owned && why) text_draw(108, 206, FONT_S, why, RGBA(200, 90, 30, 255), 1);
-    /* cuadricula */
-    /* 4 filas a la vista: la cuadricula se desplaza con el cursor */
-    int first_row = sel / 5 > 3 ? sel / 5 - 3 : 0;
-    int rows = (shop_count + 4) / 5;
-    for (int k = first_row * 5; k < shop_count; k++) {
-        int i = shop_list[k];
-        float x = 240 + (k % 5) * 47, y = 58 + (k / 5 - first_row) * 46;
-        if (y > 220) break;
-        int own = shop_tab ? bg_available(i) : skin_available(i);
-        /* la 14.2.9 ya no trae Slot_Locked: la casilla libre en gris */
-        int slot = WSPR(own ? UI_SLOT_UNLOCKED : UI_SLOT_LOCKED);
-        uint32_t tint = WHITE;
-        if (slot < 0 && !own) { slot = WSPR(UI_SLOT_UNLOCKED); tint = RGBA(150, 150, 150, 255); }
-        float s = k == sel ? 44 : 40;
-        if (slot >= 0) gfx_sprite_rect(&world, slot, x - s / 2, y - s / 2, s, s, tint);
-        else gfx_fill(x - s / 2, y - s / 2, s, s, own ? RGBA(90, 160, 60, 255) : RGBA(90, 90, 90, 255));
-        item_icon(shop_tab, i, x, y, s * 0.8f, s * 0.8f, own ? WHITE : RGBA(110, 110, 110, 255));
-        if ((shop_tab ? sv.bg : sv.skin) == i) gfx_sprite_fit(&world, WSPR(UI_ICON_TICK), x + 14, y + 14, 18, 18, WHITE);
-    }
-    /* flechas si hay filas por arriba o por abajo */
-    if (first_row > 0) text_draw(352, 30, FONT_M, "^", WHITE, 1);
-    if (first_row + 4 < rows) text_draw(352, 226, FONT_M, "v", WHITE, 1);
+    text_draw(125, 172, FONT_M, b, WHITE, 1);
+    if (!owned && why) text_draw(125, 192, FONT_S, why, RGBA(255, 220, 120, 255), 1);
     counters(SCR_H - 40);
     help(T(BTN_X " Elegir/pagar   " BTN_O " Volver   L/R Pestana"));
 }
 
 static void shop_input(unsigned in)
 {
-    shop_build();
     if (in & IN_L) { shop_tab = (shop_tab + 2) % 3; sel = 0; }
     if (in & IN_R) { shop_tab = (shop_tab + 1) % 3; sel = 0; }
+    if (in & IN_CIRCLE) { play_sfx(SFX_CLICK); home_sel = shop_tab == 2 ? HM_SHOP : HM_SKIN; set_state(GS_HOME); return; }
     if (shop_tab == 2) {
-        pack_build();
-        if (sel >= pack_count) sel = pack_count ? pack_count - 1 : 0;   /* la lista encoge al agotarse un paquete */
-        if (in & IN_UP && sel > 0) sel--;
-        if (in & IN_DOWN && sel + 1 < pack_count) sel++;
-        if (in & IN_CIRCLE) { play_sfx(SFX_CLICK); sel = H_SHOP; set_state(GS_HOME); return; }
+        cards_build();
+        if (sel >= ncards) sel = ncards ? ncards - 1 : 0;   /* la lista encoge al agotarse un paquete */
+        if (in & IN_LEFT && sel > 0) sel--;
+        if (in & IN_RIGHT && sel + 1 < ncards) sel++;
         if (in & IN_CROSS) packs_buy();
         return;
     }
     shop_build();
     if (in & IN_LEFT && sel > 0) sel--;
     if (in & IN_RIGHT && sel + 1 < shop_count) sel++;
-    if (in & IN_UP && sel >= 5) sel -= 5;
-    if (in & IN_DOWN && sel + 5 < shop_count) sel += 5;
-    if (in & IN_CIRCLE) { play_sfx(SFX_CLICK); sel = H_SHOP; set_state(GS_HOME); return; }
+    if (in & IN_UP && sel >= 3) sel -= 3;
+    if (in & IN_DOWN && sel + 3 < shop_count) sel += 3;
+    else if (in & IN_DOWN && sel / 3 < (shop_count - 1) / 3) sel = shop_count - 1;
     if (!(in & IN_CROSS) || !shop_count) return;
     int id = shop_list[sel];
     int owned = shop_tab ? bg_available(id) : skin_available(id);
@@ -671,7 +1035,13 @@ static void shop_input(unsigned in)
     }
     const char *why;
     int need = item_need(shop_tab, id, &why);
-    if (need <= 0) { play_sfx(SFX_STOP); ui_message(why ? why : T("Bloqueado"), 1.5f); return; }
+    if (need <= 0) {
+        int k = pack_of_item(shop_tab, id);
+        if (k >= 0 && pack_valid(k)) { play_sfx(SFX_CLICK); open_packs(k); return; }   /* su paquete */
+        play_sfx(SFX_STOP);
+        ui_message(why ? why : T("Bloqueado"), 1.5f);
+        return;
+    }
     if (!sv.tokens) { play_sfx(SFX_STOP); ui_message(T("Sin fichas: gana 1 ficha por cada nivel nuevo superado"), 2.5f); return; }
     sv.tokens--;
     uint8_t *paid = shop_tab ? &sv.bg_paid[id] : &sv.skin_paid[id];
@@ -722,7 +1092,7 @@ static void daily_draw(void)
 
 static void daily_input(unsigned in)
 {
-    if (in & IN_CIRCLE) { play_sfx(SFX_CLICK); sel = H_DAILY; set_state(GS_HOME); return; }
+    if (in & IN_CIRCLE) { play_sfx(SFX_CLICK); home_sel = HM_DAILY; set_state(GS_HOME); return; }
     if (!(in & IN_CROSS) || !daily_ready()) return;
     int n = meta.ndaily ? meta.ndaily : 7;
     int day = sv.daily_day % n;
@@ -748,47 +1118,26 @@ static void daily_input(unsigned in)
 /* ---------------------------------------------------------------- ajustes */
 static void settings_draw(void)
 {
-    gfx_bg(&bg_tex, WHITE);
-    gfx_fill(0, 0, SCR_W, SCR_H, RGBA(0, 0, 0, 90));
-    draw_panel(110, 20, 260, 230);
-    text_draw(SCR_W / 2, 30, FONT_L, T("AJUSTES"), TXT_DARK, 1);
-    char b[64];
-    snprintf(b, sizeof(b), T("SONIDO: %s"), T(sv.sound ? "SI" : "NO"));
-    draw_button(150, 70, 180, 32, b, sel == 0, 1);
-    snprintf(b, sizeof(b), T("MUSICA: %s"), T(sv.music ? "SI" : "NO"));
-    draw_button(150, 110, 180, 32, b, sel == 1, 1);
-    draw_button(150, 150, 180, 32, T(confirm_reset ? "PULSA OTRA VEZ" : "BORRAR PARTIDA"), sel == 2, 1);
-    unsigned m = sv.play_seconds / 60;
-    snprintf(b, sizeof(b), T("%d niveles superados | %uh %02um jugadas"), levels_won_count(), m / 60, m % 60);
-    text_draw(SCR_W / 2, 196, FONT_S, b, TXT_DARK, 1);
-    text_draw(SCR_W / 2, 214, FONT_S, T("Snake Puzzle 14.2.9 - port para PSP"), TXT_DARK, 1);
-    help(T(BTN_X " Cambiar   " BTN_O " Volver"));
+    home_draw();
+    settings_popup(0);
 }
 
 extern void save_defaults(void);
 
 static void settings_input(unsigned in)
 {
-    if (in & IN_UP) { sel = (sel + 2) % 3; confirm_reset = 0; }
-    if (in & IN_DOWN) { sel = (sel + 1) % 3; confirm_reset = 0; }
-    if (in & IN_CIRCLE) { play_sfx(SFX_CLICK); sel = H_SETTINGS; set_state(GS_HOME); return; }
-    if (!(in & IN_CROSS)) return;
-    play_sfx(SFX_CLICK);
-    if (sel == 0) sv.sound ^= 1;
-    if (sel == 1) sv.music ^= 1;
-    if (sel == 2) {
-        if (!confirm_reset) confirm_reset = 1;
-        else {
-            save_defaults();
-            load_skin(0);
-            load_bg(0);
-            confirm_reset = 0;
-            ui_message(T("Partida borrada"), 1.5f);
-            dlog("AJUSTES partida borrada");
-        }
+    if (settings_nav(in)) { play_sfx(SFX_CLICK); sel = 0; confirm_reset = 0; home_sel = HM_SETTINGS; set_state(GS_HOME); return; }
+    if (!(in & IN_CROSS) || sel != 2) return;
+    if (!confirm_reset) confirm_reset = 1;
+    else {
+        save_defaults();
+        load_skin(0);
+        load_bg(0);
+        confirm_reset = 0;
+        ui_message(T("Partida borrada"), 1.5f);
+        dlog("AJUSTES partida borrada");
+        game_save();
     }
-    audio_set_enabled(sv.sound, sv.music);
-    game_save();
 }
 
 /* ---------------------------------------------------------------- premio (NewSkinUnlocked / NewBGUnlocked) */
@@ -848,6 +1197,9 @@ void ui_input(unsigned in)
 void ui_update(float dt)
 {
     if (msg_t > 0) msg_t -= dt;
+    win_t += dt;
+    bundle_t += dt;
+    if (bundle_t > 3) { bundle_t = 0; bundle_k++; }   /* BundleScrollController: pasa solo */
 }
 
 void ui_draw(void)

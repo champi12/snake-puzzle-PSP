@@ -71,15 +71,19 @@ hoy coinciden **266 de 266** (con los niveles de la 2.3.4 y con los de la 14.2.9
 
 | Boton | En el juego | En los menus |
 |---|---|---|
-| Cruceta o stick | Mover la serpiente (mantener: repetir) | Elegir |
+| Cruceta (el stick esta desactivado por ahora: `make ANALOG=1`) | Mover la serpiente (mantener: repetir) | Elegir |
 | X | | Aceptar |
-| O | | Volver |
-| □ (cuadrado) | Pista (gasta 1) | Sonido (en pausa) |
-| △ (triangulo) | Reiniciar el nivel | Musica (en pausa) |
-| L | Deshacer | Pagina/pestana anterior |
-| R | Saltar el nivel (gasta 1) | Pagina/pestana siguiente |
-| START | Pausa | |
+| O | | Volver / cerrar |
+| □ (cuadrado) | Pista (gasta 1) | |
+| △ (triangulo) | Reiniciar el nivel | Tienda (en NIVELES) |
+| L | Deshacer | Pestana anterior |
+| R | Saltar el nivel (gasta 1) | Pestana siguiente |
+| START | Ajustes (Musica, Sonido, Inicio): en la 14.2.9 no hay menu de pausa | |
 | SELECT | Medidor de rendimiento (3 paginas) | |
+
+Las pantallas son las de la 14.2.9 a 1/4 de su tamano (1920x1080 -> 480x270): inicio con el banner del paquete de
+temporada, JUGAR "Lv.N" y Snake Retro; botones de juego arriba; ventanas de Ajustes, "Failed!" (Repetir / Saltar) y
+nivel completado; progreso de aspecto (New Skin); tienda de casillas y tienda de paquetes con tarjetas.
 
 ## Como generar los datos
 
