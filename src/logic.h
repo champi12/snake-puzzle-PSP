@@ -60,7 +60,9 @@ typedef struct {
 } GLevel;
 
 /* resultado de un movimiento */
-enum { MV_NONE = 0, MV_BLOCKED, MV_MOVED, MV_EAT, MV_PUSH, MV_TELE, MV_WIN, MV_DIE };
+/* MV_DIE: la cabeza entra en pinchos o sierra (HandleMovement: suena "thorn"); MV_FALL_DIE: muere al caer, al vacio
+ * (FallTimeoutCoroutine) o sobre una trampa (Trap.OnTriggerEnter2D): en el original no suena "thorn" */
+enum { MV_NONE = 0, MV_BLOCKED, MV_MOVED, MV_EAT, MV_PUSH, MV_TELE, MV_WIN, MV_DIE, MV_FALL_DIE };
 
 /* pasos para la animacion: la logica es instantanea, el dibujo recorre estas fotos */
 #define MAX_STEPS 48

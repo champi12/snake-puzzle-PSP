@@ -126,7 +126,8 @@ static void do_move(int dir)
     switch (r) {
     case MV_EAT: play_sfx(SFX_EAT); eat_t = 0.5f; break;
     case MV_PUSH: play_sfx(SFX_MOVE_STONE); break;
-    case MV_DIE: play_sfx(SFX_THORN); break;
+    case MV_DIE: play_sfx(SFX_THORN); break;   /* solo al chocar con pinchos o sierra */
+    case MV_FALL_DIE: play_sfx(SFX_WORM); break;  /* el paso; al caer suena SFX_DROP y luego SFX_LOSE */
     default: play_sfx(SFX_WORM); break;
     }
 }
@@ -236,7 +237,9 @@ void play_update(float dt)
             int was_fall = steps.step[step_i].kind == STEP_FALL;
             shown_from = steps.step[step_i].st;
             step_i++;
-            if (!animating() && was_fall) play_sfx(steps.snake_fell ? SFX_DROP : SFX_STONE_DROP);
+            /* el golpe solo al aterrizar: si cae al vacio o sobre pinchos solo suena el de perder */
+            if (!animating() && was_fall && !(steps.snake_fell && S.dead))
+                play_sfx(steps.snake_fell ? SFX_DROP : SFX_STONE_DROP);
         }
         if (!animating()) step_t = 0;
     }

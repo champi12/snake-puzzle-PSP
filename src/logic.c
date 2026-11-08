@@ -404,6 +404,6 @@ int logic_move(const GLevel *g, GState *s, int dir, GSteps *o)
     }
     push_step(o, STEP_MOVE, s);
     physics(g, s, o);
-    if (s->dead) return MV_DIE;
+    if (s->dead) return MV_FALL_DIE;
     return gi >= 0 ? MV_TELE : res;
 }
