@@ -155,6 +155,18 @@ static int loop_pick(void)
 
 int pos_is_loop(int pos) { return pos >= levels.count; }
 
+/* numero que se ensena (Level_N del original): los niveles vacios del APK (101, 147, 167, 175) no se juegan pero no
+ * corren la numeracion; el bucle sigue a partir de TOTAL_LEVEL (271, 272...) */
+int pos_number(int pos)
+{
+    if (pos < 0) return 1;
+    if (pos_is_loop(pos)) {
+        int last = levels.count ? levels_num(&levels, levels.count - 1) : 0;
+        return (last > TOTAL_LEVEL ? last : TOTAL_LEVEL) + pos - levels.count + 1;
+    }
+    return levels_num(&levels, pos);
+}
+
 static void loop_window(int pos)
 {
     if (pos >= sv.loop_base && pos <= sv.loop_base + LOOP_AHEAD) return;
@@ -174,7 +186,7 @@ static int loop_slot(int pos)
         *r = loop_pick();
         sv.loop_used[*r >> 3] |= 1 << (*r & 7);
         add_recent(*r);
-        dlog("BUCLE nivel %d -> nivel real %d", pos + 1, levels_num(&levels, *r));
+        dlog("BUCLE nivel %d -> nivel real %d", pos_number(pos), levels_num(&levels, *r));
     }
     return *r;
 }

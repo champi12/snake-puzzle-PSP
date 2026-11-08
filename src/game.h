@@ -125,6 +125,7 @@ void level_set_skipped(int idx, int on);
 /* bucle de niveles (UserLevelInfo de la 14.2.9): tras el ultimo nivel se sigue con niveles al azar */
 int pos_level(int pos);            /* indice del nivel que se juega en la posicion pos */
 int pos_is_loop(int pos);
+int pos_number(int pos);           /* numero del nivel que se ensena (Level_N; en el bucle 271, 272...) */
 void pos_advance(int pos);         /* pos superado o saltado: sv.cur_level pasa a la siguiente */
 void load_skin(int id);
 void load_bg(int id);

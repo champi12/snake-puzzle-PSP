@@ -213,7 +213,7 @@ static void home_draw(void)
     /* jugar */
     float s = pulse(home_sel == HM_PLAY);
     wrect(UI_BTN_PLAY, 241, 178, 120 * s, 75 * s, WHITE);
-    snprintf(b, sizeof(b), "Lv.%d", sv.cur_level + 1);
+    snprintf(b, sizeof(b), "Lv.%d", pos_number(sv.cur_level));
     text_draw(241, 132, FONT_L, b, WHITE, 1);
     /* Snake Retro */
     s = pulse(home_sel == HM_RETRO);
@@ -315,7 +315,7 @@ static void select_draw(void)
             if (id >= 0) gfx_sprite_rect(&world, id, x - 30 * s, y - 26 * s, 60 * s, 52 * s, WHITE);
         }
         if (!lock) {
-            snprintf(b, sizeof(b), "%02d", i + 1);
+            snprintf(b, sizeof(b), "%02d", levels_num(&levels, i));
             /* fontUnlock (superado) y fontOther (actual o saltado) */
             uint32_t col = (i == cur || level_skipped(i)) ? RGBA(120, 60, 20, 255) : WHITE;
             text_draw(x, y - 4 * s - text_height(FONT_M) / 2, FONT_M, b, col, 1);
@@ -496,11 +496,12 @@ static void win_draw(void)
     wfit(UI_STAR_BANNER_WIN_ON, 241, 31, 41 * st, 40 * st, WHITE);
     wfit(UI_STAR, 280, 41, 34 * st, 33 * st, WHITE);
     char b[96];
-    snprintf(b, sizeof(b), T("Nivel %02d"), play_pos + 1);
+    snprintf(b, sizeof(b), T("Nivel %02d"), pos_number(play_pos));
     text_draw(241, 78, FONT_XL, b, TXT_DARK, 1);
     text_draw(241, 108, FONT_L, T("COMPLETADO!"), TXT_DARK, 1);
     /* top_player.txt: porcentaje de jugadores (LbTopPlayer) */
-    int pct = play_pos < meta.ntop ? meta.top[play_pos] : 0;
+    int tn = pos_number(play_pos) - 1;
+    int pct = !pos_is_loop(play_pos) && tn < meta.ntop ? meta.top[tn] : 0;
     if (pct) {
         snprintf(b, sizeof(b), T("Estas en el top %d,%02d%% de jugadores"), pct / 100, pct % 100);
         text_draw(241, 134, FONT_S, b, RGBA(200, 90, 30, 255), 1);

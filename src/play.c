@@ -89,7 +89,7 @@ void play_start(int pos, int hint_mode)
     dbg_game.level = cur_level.num;
     dbg_game.moves = 0;
     if (pos_is_loop(pos))
-        dlog("NIVEL %d del bucle = nivel real %d (indice %d) %dx%d, %d casillas, %d objetos%s", pos + 1, cur_level.num,
+        dlog("NIVEL %d del bucle = nivel real %d (indice %d) %dx%d, %d casillas, %d objetos%s", pos_number(pos), cur_level.num,
              idx, G.w, G.h, cur_level.ntiles, cur_level.nobj, hint_mode ? " - modo pista" : "");
     else
         dlog("NIVEL %d (indice %d) %dx%d, %d casillas, %d objetos%s", cur_level.num, idx, G.w, G.h, cur_level.ntiles,
@@ -213,7 +213,7 @@ static void on_win(void)
     }
     pos_advance(play_pos);
     game_save();
-    dlog("SUPERADO nivel %d%s en %d movimientos%s", play_pos + 1, pos_is_loop(play_pos) ? " (bucle)" : "", moves,
+    dlog("SUPERADO nivel %d%s en %d movimientos%s", pos_number(play_pos), pos_is_loop(play_pos) ? " (bucle)" : "", moves,
          first ? " (primera vez: +1 ficha)" : "");
     play_sfx(SFX_WIN);
     ui_win_begin(first);
@@ -491,6 +491,16 @@ static void draw_tiles(int front)
  * piedras: con dos piedras juntas o apiladas el cubo de una tapa los bordes de la otra.
  * part 0: bordes; part 1: cubos */
 #define STONE_SCALE 0.9f
+/* pinchos por capas como en el original (capa Player): Spike_1 orden 6 (detras de la cara de la piedra, 8) y
+ * Spike_2 orden 9 (delante); los dos por delante de la serpiente (4) */
+static void draw_spikes(int layer)
+{
+    for (int i = 0; i < cur_level.nobj; i++) {
+        const LvObj *o = &cur_level.obj[i];
+        if (o->type == O_SPIKE) gfx_sprite(&world, WSPR(layer ? W_SPIKE2 : W_SPIKE1), sx(o->x), sy(o->y), cs, o->a & 3, 0, WHITE);
+    }
+}
+
 static void draw_stones(const GState *s, const GState *from, float t, int part)
 {
     int cube = WSPR(W_STONE_LIST + 0);
@@ -548,10 +558,7 @@ static void draw_objects(const GState *s, const GState *from, float t)
     /* pinchos y sierras */
     for (int i = 0; i < cur_level.nobj; i++) {
         const LvObj *o = &cur_level.obj[i];
-        if (o->type == O_SPIKE) {
-            gfx_sprite(&world, WSPR(W_SPIKE2), sx(o->x), sy(o->y), cs, o->a & 3, 0, WHITE);
-            gfx_sprite(&world, WSPR(W_SPIKE1), sx(o->x), sy(o->y), cs, o->a & 3, 0, WHITE);
-        } else if (o->type == O_SAW)
+        if (o->type == O_SAW)
             gfx_sprite_angle(&world, WSPR(W_SAW), sx(o->x), sy(o->y), cs, saw_ang, WHITE);
         else if (o->type == O_TUT)
             gfx_sprite(&world, o->spr, ox + (o->px / 256.0f + 0.5f) * cs, oy + (G.h - o->py / 256.0f - 0.5f) * cs, cs, 0, 0,
@@ -598,7 +605,9 @@ void play_draw(void)
         gfx_sprite_angle(&world, WSPR(W_GOAL), sx(G.gx), sy(G.gy), cs * grow, goal_ang + win_t * win_t * 6, WHITE);
     } else
         draw_snake(&shown_from, to, t, 0);
+    draw_spikes(0);                        /* Spike_1 (6) */
     draw_stones(to, &shown_from, t, 1);   /* Stone_0 (orden 8) por delante de la serpiente (4) */
+    draw_spikes(1);                        /* Spike_2 (9): por delante de la piedra */
     /* portales: parte de delante (tapa la serpiente al entrar) */
     for (int g = 0; g < G.ngate; g++)
         gfx_sprite(&world, WSPR(W_PORTAL_FRONT), sx(G.gate[g].x), sy(G.gate[g].y), cs, rot_of(G.gate_dir[g]), 0, WHITE);
@@ -631,7 +640,7 @@ void play_draw(void)
     int lb = WSPR(UI_LEVEL_BAS);
     if (lb >= 0) gfx_sprite_rect(&world, lb, 240 - 40, 3, 80, 22, WHITE);
     else gfx_fill(200, 3, 80, 22, RGBA(0, 0, 0, 110));
-    snprintf(b, sizeof(b), T("Nivel %d"), play_pos + 1);
+    snprintf(b, sizeof(b), T("Nivel %d"), pos_number(play_pos));
     text_draw(240, 14 - text_height(FONT_M) / 2, FONT_M, b, WHITE, 1);
     int st = WSPR(UI_BTN_SETTINGS);
     if (st >= 0) gfx_sprite_rect(&world, st, 459 - 12, 4, 24, 24, WHITE);
