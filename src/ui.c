@@ -472,9 +472,6 @@ static void progress_popup_draw(void)
     char t[16];
     snprintf(t, sizeof(t), "%d%%", (int)(f * 100 + 0.5f));
     text_draw(238, 148 - text_height(FONT_XL) / 2, FONT_XL, t, WHITE, 1);
-    /* boton de aspectos (Btn_Skin_Unlocked) a la derecha, como en el original */
-    wrect(UI_BTN_SKIN, 430, 37, 26, 26, WHITE);
-    if (f >= 1) wrect(UI_ICON_NOTI, 440, 28, 8, 8, WHITE);
     help(T(BTN_X " Seguir"));
 }
 
