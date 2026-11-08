@@ -19,6 +19,34 @@ IL2CPP_METADATA=.../global-metadata.dat IL2CPP_SO=.../libil2cpp.so python3 tools
 IL2CPP_METADATA=... IL2CPP_SO=... python3 tools/decompile/il2dis.py 'SnakeController::HandleMovement'
 ```
 
+### Version 14.2.9 (Unity 6, solo armeabi-v7a)
+
+La 14.2.9 esta hecha con **Unity 6000.0.68f1** y el XAPK solo trae `lib/armeabi-v7a/libil2cpp.so` (ARM de 32 bits);
+la metadata sigue siendo la version 31. `tools/unityload.py` acepta las dos arquitecturas y lee la version de Unity
+de los propios datos. Para el codigo de 32 bits esta `il2cpp32.py` (lector y desensamblador ARM/Thumb anotado en uno):
+
+```
+IL2CPP_METADATA=... IL2CPP_SO=.../armeabi-v7a/libil2cpp.so python3 tools/decompile/il2cpp32.py 'UserLevelInfo::SelectLevelFromPool'
+```
+
+Lo que cambia en el juego (el resto de clases de juego, `SnakeController`, `Stone`, `TeleportGate`..., es igual):
+
+* `UserLevelInfo` (bucle de niveles, con `new_loop_logic = true` por defecto): `get_Level` es `UserInfo.CurrentLevel`;
+  si pasa de `GamePlayController.TOTAL_LEVEL` (270) es un nivel del bucle. `GetOrGenerateRealLevel` mira
+  `LoopLevelHistory[nivel]`; si no hay uno valido (`IsValidLoopRealLevel`: 1..270 y fuera de
+  `LevelConfig.ignoreLoopLevels`) llama a `SelectLevelFromPool`: candidatos 1..270 no ignorados y que no esten en
+  `RecentPlayedLevels` ni en los valores de `LoopLevelHistory` (`AddCandidateLevels(..., shouldCheckUsed: true)`); si
+  no queda ninguno, sin esa comprobacion; si tampoco, `GetFallbackRealLevel` (el primero no ignorado). Se elige con
+  `Random.Range`. `AddToRecentLevels` guarda los ultimos 30 (`RemoveAt(0)` mientras pasen de 30) y
+  `PreGenerateFutureLevels` elige los 10 siguientes. El texto del nivel es `"Level " + CurrentLevel`.
+* `LevelSelectElement.Init`: nivel > actual -> `sprLock` sin numero y sin boton; = actual -> `sprCurrent`; menor ->
+  `sprSkip` si esta en `LEVEL_SKIP_DATA`, si no `sprPass`. Numero con formato `"00"`.
+* `ShopIAPController.OnEnable`: cada paquete de temporada (BundleType 1-4) se oculta si no esta en
+  `seasonal_pack_show` o si ya se compro; no depende de la fecha. La oferta limitada depende de `limit_offer_show`.
+* `LevelManager.LoadLevel`: los prefabs `Level_N_a` solo se usan si la configuracion remota `level_test_ver2` (vacia
+  por defecto) incluye el nivel: sin internet nunca.
+* Los valores por defecto de la configuracion remota estan en `remoteconfig/remoteconfigdata` (`BS_RemoteConfig`).
+
 Los MonoBehaviour de los niveles se guardan **sin typetree**; `tools/unityload.py` genera la estructura de cada
 script a partir de `libil2cpp.so` + `global-metadata.dat` (TypeTreeGeneratorAPI), igual que hace Unity al cargar.
 

@@ -1,6 +1,7 @@
 # Snake Puzzle para PSP
 
-Port nativo para PSP de **Snake Puzzle 2.3.4** (Android, `puzzle.snakes.puzzle.slithereat.gaming`, Unity 2022.3).
+Port nativo para PSP de **Snake Puzzle 14.2.9** (Android, `puzzle.snakes.puzzle.slithereat.gaming`, Unity 6). Se empezo
+con la 2.3.4 (Unity 2022.3) y se ha actualizado a la 14.2.9; el extractor sirve para las dos.
 No es un juego "parecido": la logica del original se ha leido del codigo compilado (IL2CPP, ARM64) y se ha
 **traducido a C**, y los niveles, graficos, fuente, sonidos y musica se **extraen del propio APK**.
 
@@ -24,16 +25,33 @@ No es un juego "parecido": la logica del original se ha leido del codigo compila
 | `Portal`, `PortalRotate`, `StartAutoMove` | `src/play.c` | La meta: la serpiente entra entera y `LevelComplete` |
 | `ToolHint`, `ToolFileHandler` (pistas cifradas con XOR "appleworm") | `src/play.c`, `tools/extract.py` | La pista muestra la solucion oficial del nivel paso a paso |
 | `ClassicGamePlay`, `ClassicController`, `ClassicLeaderboardData` | `src/classic.c` | Modo clasico 13x12 con bordes que se cruzan, ranking de 10 rivales y pistas de premio |
-| `ShopController`, `ShopRegionUI.sortIndex`, `ShopInfo` | `src/ui.c` | Tienda de 29 aspectos y 14 fondos en el orden del original |
+| `ShopController`, `ShopRegionUI.sortIndex`, `ShopInfo` | `src/ui.c` | Tienda de 33 aspectos y 18 fondos en el orden del original (14.2.9) |
+| `UserLevelInfo`, `LevelConfig.ignoreLoopLevels` (14.2.9) | `src/game.c` | Bucle de niveles: tras el ultimo se sigue con niveles al azar sin repetir |
+| `SelectLevelController`, `LevelSelectElement` (14.2.9) | `src/ui.c` | Selector de niveles con manzanas: verde superado, roja saltado, amarilla actual, gris bloqueado |
+| `ShopIAPController`, `BundleButton`, `LimitedOffer` (14.2.9) | `src/ui.c` | Paquetes de temporada (Ano Nuevo Lunar, Bajo el mar, Desfile arcoiris, Gol de oro) y oferta limitada, con fichas |
 | `SkinProgress`, `RewardProgressPopupController` | `src/game.c`, `src/ui.c` | Barra de progreso y aspectos/fondos regalados por niveles superados |
 | `DailyRewardController` | `src/ui.c` | Recompensa diaria de 7 dias (pistas y aspectos) con el reloj de la PSP |
 | `top_player` | `src/ui.c` | "Mejor que el X% de los jugadores" al superar un nivel |
 | `SoundManager`, BGM y BGM_Lunar | `src/audio_psp.c` | Efectos PCM y musica MP3 por el Media Engine; la del Ano Nuevo Lunar en sus fechas |
 | Eventos (Halloween, Navidad, Ano Nuevo Lunar) | `src/game.c` | Los articulos de evento se regalan mientras dura el evento |
 
-**Contenido:** 266 niveles (todos los que trae el APK con contenido), 29 aspectos de serpiente con sus animaciones de
-cabeza (parpadeo, comer, atascarse, morir), 14 fondos, modo clasico, tienda, recompensa diaria, progreso de
-aspectos, pistas, saltos de nivel, ajustes y la musica original.
+**Contenido:** 266 niveles (todos los que trae el APK con contenido) y despues el bucle infinito de la 14.2.9, 33
+aspectos de serpiente con sus animaciones de cabeza (parpadeo, comer, atascarse, morir), 18 fondos, modo clasico,
+tienda, paquetes de temporada, recompensa diaria, progreso de aspectos, pistas, saltos de nivel, ajustes y la musica
+original.
+
+**Novedades de la 14.2.9 portadas:**
+* Aspectos 30, 31, 32 y 33 y fondos 14, 15, 16 y 17 (el aspecto 29 tiene icono pero no graficos en el APK: no sale).
+* Paquetes de temporada (siempre a la venta hasta comprarlos, `seasonal_pack_show = 1,2,3,4`) y la oferta limitada:
+  en el original se pagan con dinero; aqui con fichas.
+* Bucle de niveles (`new_loop_logic`): el nivel 267 y siguientes son niveles reales elegidos al azar, sin los de
+  `ignoreLoopLevels` ni los 30 ultimos jugados, y sin repetir hasta agotarlos; se eligen 10 por adelantado.
+* El selector de niveles nuevo (manzanas) y el orden nuevo de la tienda (los aspectos 14, 24, 25 y 26 ya no se
+  ofrecen; si ya los tenias, siguen ahi).
+* La partida guardada del port de la 2.3.4 se convierte sola al arrancar (no se pierde nada).
+* No se portan: anuncios (AdBreak, audio, nativos, Odeeo), seguimiento (AppsFlyer, TikTok, Firebase) ni los niveles
+  `level_5_a`, `level_11_a` y `level_113_a`, que solo usa una prueba A/B por configuracion remota (`level_test_ver2`,
+  vacia sin internet).
 
 **Lo que dependia de internet** se ha sustituido por algo local:
 * "Ver un anuncio" para desbloquear un aspecto o fondo -> **fichas**: 1 por cada nivel nuevo superado (cada articulo
@@ -47,9 +65,7 @@ aspectos, pistas, saltos de nivel, ajustes y la musica original.
 ### Fidelidad de la logica
 
 `tests/host_test.c` juega en el PC la **solucion oficial de cada nivel** (las pistas del APK) con la logica del port:
-hoy coinciden **247 de 266**. En los 19 restantes la solucion oficial no llega a la meta con las reglas actuales
-(sobre todo niveles con piedras y portales); se pueden jugar y superar igual, pero la pista de esos niveles puede no
-llevar a la meta. Ver [docs/DESCOMPILACION.md](docs/DESCOMPILACION.md).
+hoy coinciden **266 de 266** (con los niveles de la 2.3.4 y con los de la 14.2.9).
 
 ## Controles
 
@@ -70,10 +86,12 @@ llevar a la meta. Ver [docs/DESCOMPILACION.md](docs/DESCOMPILACION.md).
 Necesitas Python 3 y:
 
     pip install -r tools/requirements.txt
-    python3 tools/extract.py snake-puzzle-2-3-4.xapk data/
+    python3 tools/extract.py Snake+Puzzle_+Slither+to+Eat_14.2.9_APKPure.xapk data/
 
-Si tienes el XAPK partido en `.rar`, descomprimelo antes (`unrar x snake-puzzle-2-3-4.part1.rar`). Tambien vale el APK
-base con `config.arm64_v8a.apk` en la misma carpeta (hace falta `libil2cpp.so` para leer los scripts).
+Si tienes el XAPK partido en `.rar`, descomprimelo antes (`unrar x SnakePuzzle_SlithertoEat_14.2.9_APKPure.part1.rar`).
+Tambien vale el APK base con `config.armeabi_v7a.apk` (14.2.9) o `config.arm64_v8a.apk` (2.3.4) en la misma carpeta
+(hace falta `libil2cpp.so` para leer los scripts). `./actualizar.sh` lo hace todo y, si encuentra varias versiones
+del juego, usa la mas nueva.
 
 | Archivo | Contenido |
 |---|---|
@@ -83,7 +101,7 @@ base con `config.arm64_v8a.apk` en la misma carpeta (hace falta `libil2cpp.so` p
 | `bgNN.tex`, `home.tex` | Fondos a 480x272 en 16 bits con difuminado |
 | `shop.spr` | Iconos de la tienda y del progreso |
 | `font.spr` | La fuente del juego (Lilita One) a 12, 16, 22 y 30 px, mas los simbolos ✕ ○ □ △ de la PSP |
-| `meta.bin` | Tienda, progreso de aspectos, recompensa diaria, ranking clasico y top de jugadores |
+| `meta.bin` | Tienda (con su orden y paquetes), progreso de aspectos, recompensa diaria, ranking clasico, top de jugadores y niveles fuera del bucle |
 | `sfx.bin` | 14 efectos en PCM 16 bits 22.050 Hz |
 | `music.mp3`, `music_lunar.mp3` | La musica original en MP3 (la decodifica el Media Engine) |
 | `ICON0.PNG`, `PIC1.PNG` | Icono y fondo del menu de la PSP (van dentro del EBOOT) |
@@ -129,4 +147,3 @@ ademas `exhandler.prx` y `exloader.prx`. Funciona en firmware personalizado (CFW
 ## Pendiente
 
 * Probarlo en una PSP real y en PPSSPP (todavia no se ha ejecutado en ninguno de los dos).
-* Los 19 niveles cuya solucion oficial no coincide todavia con las reglas del port.

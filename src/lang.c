@@ -47,7 +47,10 @@ static const char *const tr[][2] = {
     {"SONIDO: %s", "SOUND: %s"}, {"MUSICA: %s", "MUSIC: %s"}, {"SI", "ON"}, {"NO", "OFF"},
     {"PULSA OTRA VEZ", "PRESS AGAIN"}, {"BORRAR PARTIDA", "DELETE SAVE"},
     {"%d niveles superados | %uh %02um jugadas", "%d levels beaten | %uh %02um played"},
-    {"Snake Puzzle 2.3.4 - port para PSP", "Snake Puzzle 2.3.4 - PSP port"},
+    {"Snake Puzzle 14.2.9 - port para PSP", "Snake Puzzle 14.2.9 - PSP port"},
+    {"En PACKS (con fichas)", "In PACKS (with tokens)"}, {"Oferta limitada", "Limited offer"},
+    {"Ano Nuevo Lunar", "Lunar New Year"}, {"Bajo el mar", "Under the Sea"}, {"Desfile arcoiris", "Rainbow Parade"},
+    {"Gol de oro", "Golden Goal"},
     {BTN_X " Cambiar   " BTN_O " Volver", BTN_X " Change   " BTN_O " Back"}, {"Partida borrada", "Save deleted"},
     /* premio */
     {"FONDO NUEVO!", "NEW SCENE!"}, {"ASPECTO NUEVO!", "NEW SKIN!"},

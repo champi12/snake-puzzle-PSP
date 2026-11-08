@@ -325,13 +325,21 @@ UI_SPRITES = ['Logo', 'Background_Home', 'Btn_Play', 'Btn_Green', 'Btn_Gray', 'B
               'base_item_claimed', 'base_item_day7', 'base_item_day7_claimed', 'reward_skin_1', 'reward_skin_2',
               'reward_skin_3', 'icon_Hint', 'Icon_SkipLevel', 'Slot_Locked', 'icon_shop', 'icon_daily', 'icon_setting',
               'Btn_Minigame', 'Title_Rating', 'Icon_Ads', 'NewSkinUnlocked', 'NewBGUnlocked', 'Btn_Skin_Christmas',
-              'button_ranking', 'icon_HOME', 'icon_noti', 'Btn_Move', 'Btn_Move_Active', 'icon_MOVE_0']
+              'button_ranking', 'icon_HOME', 'icon_noti', 'Btn_Move', 'Btn_Move_Active', 'icon_MOVE_0',
+              # 14.2.9: manzanas del selector de niveles (LevelSelectElement), Page_Base y la oferta limitada
+              'Apple_Green', 'Apple_Yellow', 'Apple_Gray', 'Apple_Red', 'Page_Base', 'Icon_LimitedOffer']
 UI_MAXPX = {'NewSkinUnlocked': 160, 'NewBGUnlocked': 160, 'Title_Rating': 160, 'Background_Home': 0, 'Logo': 200, 'Popup_Win': 220, 'Popup_Lose': 220, 'base_popup': 220,
             'Banner_Win': 200, 'Banner_Lose': 200, 'Title_Base': 160, 'Frame': 160}
 
 
+# nombres que cambiaron en la 14.2.9 (Unity 6): se usa el primero que exista
+UI_ALIASES = {'Logo': ['Logo', 'Logo_v12']}
+
+
 def find_sprites_by_name(G, names):
     want = set(names)
+    for n in names:
+        want.update(UI_ALIASES.get(n, []))
     found = {}
     for fname in sorted(G.files):
         for o in G.files[fname].objects.values():
@@ -342,6 +350,12 @@ def find_sprites_by_name(G, names):
                     continue
                 if n in want and n not in found:
                     found[n] = o
+    for n in names:
+        if n not in found:
+            for a in UI_ALIASES.get(n, []):
+                if a in found:
+                    found[n] = found[a]
+                    break
     return found
 
 
@@ -696,13 +710,13 @@ def export_shop(G, out):
     el ranking del modo clasico (ClassicLeaderboardData) y el porcentaje de jugadores por nivel (top_player)."""
     sh = SpriteSheet(FMT_T8, 512, 512)
     skin_icon, bg_icon, prog = [], [], []
-    for i in range(32):
+    for i in range(64):
         o = G.get('shopitems/skins/%d' % i, 'Sprite')
         if o is None and G.get('snake/%d/%s' % (i, SKIN_PARTS[0]), 'Sprite') is not None:
             # aspecto sin icono de tienda en el APK (el 14): su icono propio o su cabeza
             o = G.get('skin/%d' % i, 'Sprite') or G.get('snake/%d/head/idle/head_idle_1' % i, 'Sprite')
         skin_icon.append(sh.add_unity(o, scale=48, maxpx=56) if o else -1)
-    for i in range(32):
+    for i in range(64):
         o = G.get('shopitems/backgrounds/%d' % i, 'Sprite')
         bg_icon.append(sh.add_unity(o, scale=48, maxpx=72) if o else -1)
     for i in range(11):
@@ -763,7 +777,7 @@ def export_shop(G, out):
             pr = line.split(',')
             if len(pr) == 2:
                 top.append(float(pr[1]))
-    blob = bytearray(b'META')
+    blob = bytearray(b'MET2')
     blob += struct.pack('<H', len(items))
     for it in items:
         ev = {'Halloween': 1, 'Xmas': 2, 'Lunar': 3}.get(it.get('Description', ''), 0)
@@ -782,7 +796,8 @@ def export_shop(G, out):
         blob += struct.pack('<B', len(e)) + e
     blob += struct.pack('<6i', *lbp)
     blob += struct.pack('<H', len(top)) + b''.join(struct.pack('<H', int(round(t * 100))) for t in top)
-    blob += struct.pack('<64h', *((skin_icon + bg_icon)[:64]))
+    blob += struct.pack('<H', len(skin_icon)) + struct.pack('<%dh' % len(skin_icon), *skin_icon)
+    blob += struct.pack('<H', len(bg_icon)) + struct.pack('<%dh' % len(bg_icon), *bg_icon)
     blob += struct.pack('<22h', *prog[:22])
     # paquetes de la tienda de pago (BasePackageItem: 0 sin anuncios, 1 pistas, 2 saltos, 3 aspecto, 4 fondo) y el
     # premio por "ver un anuncio" (BaseAdsPackageItem); en la PSP se pagan con fichas
@@ -796,15 +811,41 @@ def export_shop(G, out):
                 continue
             cl, d = G.mono(ob)
             if d and d.get('packageId') is not None:
-                packs.setdefault(d['packageId'], [(r['type'], r['quantity']) for r in d.get('rewards', [])])
+                packs.setdefault(d['packageId'], ([(r['type'], r['quantity']) for r in d.get('rewards', [])],
+                                                  int(bool(d.get('hasTimer')))))
     blob += struct.pack('<H', len(packs))
     for pid in sorted(packs):
-        rw = [r for r in packs[pid] if r[0] in (1, 2, 3, 4)][:8]
-        blob += struct.pack('<BB', pid, len(rw)) + b''.join(struct.pack('<BB', t, min(q, 255)) for t, q in rw)
+        rw = [r for r in packs[pid][0] if r[0] in (1, 2, 3, 4)][:8]
+        # hasTimer: el paquete de la oferta limitada (Limited Offer Zone) de la 14.2.9
+        blob += struct.pack('<BBB', pid, packs[pid][1], len(rw)) + b''.join(struct.pack('<BB', t, min(q, 255)) for t, q in rw)
+    # orden de la tienda (ShopRegionUI.sortIndex de cada pestana) y niveles fuera del bucle (LevelConfig)
+    orders = {}
+    ignore = []
+    for fname in G.files:
+        for ob in G.files[fname].objects.values():
+            if ob.type.name != 'MonoBehaviour':
+                continue
+            sc = G.script_of(ob)
+            if not sc or sc[2] not in ('ShopRegionUI', 'LevelConfig'):
+                continue
+            cl, d = G.mono(ob)
+            if not d:
+                continue
+            if sc[2] == 'ShopRegionUI' and d.get('sortIndex'):
+                orders.setdefault(d.get('shopType', 0), d['sortIndex'])
+            elif sc[2] == 'LevelConfig' and not ignore:
+                ignore = list(d.get('ignoreLoopLevels') or [])
+    for t in (0, 1):
+        o = [i for i in orders.get(t, []) if 0 <= i < 64][:255]
+        blob += struct.pack('<B', len(o)) + bytes(o)
+    ignore = ignore[:64]
+    blob += struct.pack('<B', len(ignore)) + b''.join(struct.pack('<H', i) for i in ignore)
     with open(os.path.join(out, 'meta.bin'), 'wb') as fo:
         fo.write(blob)
     print('  tienda: %d articulos, %d paquetes, %d tramos de progreso, %d dias de recompensa, ranking de %d' %
           (len(items), len(packs), len(sp), len(daily), len(names)))
+    print('  orden de la tienda: %d aspectos, %d fondos; %d niveles fuera del bucle' %
+          (len(orders.get(0, [])), len(orders.get(1, [])), len(ignore)))
 
 
 def main():

@@ -34,6 +34,14 @@ int levels_open(LevelPack *p, const char *path)
     return 0;
 }
 
+int levels_num(const LevelPack *pk, int index)
+{
+    if (index < 0 || index >= pk->count) return 0;
+    uint32_t off = u32(pk->blob + 8 + 4 * index);
+    if (off + 2 > (uint32_t)pk->size) return 0;
+    return u16(pk->blob + off);
+}
+
 void levels_close(LevelPack *p)
 {
     free(p->blob);

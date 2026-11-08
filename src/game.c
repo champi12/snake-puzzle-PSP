@@ -19,6 +19,7 @@ int nwidx;
 Tex bg_tex, home_tex;
 LevelPack levels;
 int nskins, nbgs;
+static uint64_t skin_files, bg_files;   /* que data/skinNN.spr y data/bgNN.tex hay (puede haber huecos) */
 int gstate = GS_LOADING;
 float gtime;
 static int loaded_skin = -1, loaded_bg = -1;
@@ -86,8 +87,116 @@ static const ShopItemDef *shop_def(int type, int id)
     return NULL;
 }
 
-int skin_available(int id) { return id >= 0 && id < 32 && (sv.skins_owned >> id) & 1; }
-int bg_available(int id) { return id >= 0 && id < 32 && (sv.bgs_owned >> id) & 1; }
+int skin_exists(int id) { return id >= 0 && id < MAX_SKINS && (skin_files >> id) & 1; }
+int bg_exists(int id) { return id >= 0 && id < MAX_BGS && (bg_files >> id) & 1; }
+int skin_available(int id) { return skin_exists(id) && (sv.skins_owned >> id) & 1; }
+int bg_available(int id) { return bg_exists(id) && (sv.bgs_owned >> id) & 1; }
+void own_skin(int id) { if (id >= 0 && id < MAX_SKINS) sv.skins_owned |= (uint64_t)1 << id; }
+void own_bg(int id) { if (id >= 0 && id < MAX_BGS) sv.bgs_owned |= (uint64_t)1 << id; }
+int level_skipped(int i) { return i >= 0 && i < MAX_LEVELS && (sv.skipped[i >> 3] >> (i & 7)) & 1; }
+void level_set_skipped(int i, int on)
+{
+    if (i < 0 || i >= MAX_LEVELS) return;
+    if (on) sv.skipped[i >> 3] |= 1 << (i & 7);
+    else sv.skipped[i >> 3] &= ~(1 << (i & 7));
+}
+
+/* ---------------------------------------------------------------- bucle de niveles (UserLevelInfo, 14.2.9)
+ * Con new_loop_logic (por defecto true), al pasar el ultimo nivel se sigue: "Nivel 267, 268..." juegan un nivel real
+ * elegido al azar (SelectLevelFromPool) entre los que no estan en LevelConfig.ignoreLoopLevels, sin repetir los
+ * ultimos 30 jugados (RecentPlayedLevels) ni los ya salidos en el bucle (LoopLevelHistory); si ya no queda ninguno,
+ * vale cualquiera no ignorado (AddCandidateLevels sin comprobar), y si tampoco, GetFallbackRealLevel. Se eligen 10
+ * por adelantado (PreGenerateFutureLevels). */
+static int bit(const uint8_t *b, int i) { return i >= 0 && i < MAX_LEVELS && (b[i >> 3] >> (i & 7)) & 1; }
+
+static int loop_ignored(int idx)
+{
+    if (idx < 0 || idx >= levels.count) return 1;
+    int num = levels_num(&levels, idx);
+    for (int i = 0; i < meta.nignore; i++)
+        if (meta.ignore[i] == num) return 1;
+    return 0;
+}
+
+static int is_recent(int idx)
+{
+    for (int i = 0; i < sv.nrecent; i++)
+        if (sv.recent[i] == idx) return 1;
+    return 0;
+}
+
+static void add_recent(int idx)
+{
+    if (idx < 0) return;
+    if (sv.nrecent >= LOOP_RECENT) {
+        memmove(sv.recent, sv.recent + 1, sizeof(sv.recent[0]) * (LOOP_RECENT - 1));
+        sv.nrecent = LOOP_RECENT - 1;
+    }
+    sv.recent[sv.nrecent++] = idx;
+}
+
+static int loop_pick(void)
+{
+    static uint16_t cand[MAX_LEVELS];
+    int n = 0;
+    for (int pass = 0; pass < 2 && !n; pass++)
+        for (int i = 0; i < levels.count; i++) {
+            if (loop_ignored(i)) continue;
+            if (!pass && (bit(sv.loop_used, i) || is_recent(i))) continue;
+            cand[n++] = i;
+        }
+    if (!n) {   /* GetFallbackRealLevel */
+        for (int i = 0; i < levels.count; i++)
+            if (!loop_ignored(i)) return i;
+        return levels.count - 1;
+    }
+    return cand[rand() % n];
+}
+
+int pos_is_loop(int pos) { return pos >= levels.count; }
+
+static void loop_window(int pos)
+{
+    if (pos >= sv.loop_base && pos <= sv.loop_base + LOOP_AHEAD) return;
+    if (pos > sv.loop_base && pos - sv.loop_base <= LOOP_AHEAD) {
+        int k = pos - sv.loop_base;
+        memmove(sv.loop_real, sv.loop_real + k, sizeof(sv.loop_real[0]) * (LOOP_AHEAD + 1 - k));
+        for (int i = LOOP_AHEAD + 1 - k; i <= LOOP_AHEAD; i++) sv.loop_real[i] = 0xffff;
+    } else
+        for (int i = 0; i <= LOOP_AHEAD; i++) sv.loop_real[i] = 0xffff;
+    sv.loop_base = pos;
+}
+
+static int loop_slot(int pos)
+{
+    uint16_t *r = &sv.loop_real[pos - sv.loop_base];
+    if (*r >= levels.count || loop_ignored(*r)) {   /* TryGetValidLoopHistory / IsValidLoopRealLevel */
+        *r = loop_pick();
+        sv.loop_used[*r >> 3] |= 1 << (*r & 7);
+        add_recent(*r);
+        dlog("BUCLE nivel %d -> nivel real %d", pos + 1, levels_num(&levels, *r));
+    }
+    return *r;
+}
+
+int pos_level(int pos)
+{
+    if (pos < 0) return 0;
+    if (!pos_is_loop(pos)) return pos;
+    loop_window(pos);
+    int r = loop_slot(pos);
+    for (int k = 1; k <= LOOP_AHEAD && pos + k <= sv.loop_base + LOOP_AHEAD; k++) loop_slot(pos + k);
+    return r;
+}
+
+void pos_advance(int pos)
+{
+    if (sv.cur_level > pos) return;
+    sv.cur_level = pos + 1;
+    /* UpdateLastLevel: un nivel normal entra en los recientes; en el bucle se eligen los siguientes */
+    if (!pos_is_loop(sv.cur_level)) add_recent(sv.cur_level);
+    else pos_level(sv.cur_level);
+}
 
 /* SkinProgress: cada tramo de niveles va llenando la barra de un aspecto (type 0) o un fondo (type 1) */
 int progress_next(int *start, int *end, int *id, int *type)
@@ -110,8 +219,8 @@ void shop_unlock_check(void)
         if (won < meta.prog[i].end) break;
         int id = meta.prog[i].id, type = meta.prog[i].type;
         int had = type ? bg_available(id) : skin_available(id);
-        if (type == 0) sv.skins_owned |= 1u << id;
-        else sv.bgs_owned |= 1u << id;
+        if (type == 0) own_skin(id);
+        else own_bg(id);
         sv.progress_done = i + 1;
         /* solo se anuncia si de verdad es nuevo (p. ej. un aspecto de evento ya conseguido no se vuelve a anunciar) */
         if (!had) reward_popup(type, id);
@@ -177,15 +286,17 @@ void load_bg(int id)
     loaded_bg = id;
 }
 
-static int count_files(const char *fmt, int max)
+static int count_files(const char *fmt, int max, uint64_t *have)
 {
     int n = 0;
+    *have = 0;
     for (int i = 0; i < max; i++) {
         char p[64];
         snprintf(p, sizeof(p), fmt, i);
         FILE *f = fopen(p, "rb");
         if (!f) continue;
         fclose(f);
+        *have |= (uint64_t)1 << i;
         n = i + 1;
     }
     return n;
@@ -220,10 +331,12 @@ void game_init(void)
     if (sheet_load(&shop_sheet, "data/shop.spr") == 0) load_end("shop.spr", shop_sheet.bytes);
     load_begin();
     if (bg_load(&home_tex, "data/home.tex") == 0) load_end("home.tex", home_tex.bytes);
-    nskins = count_files("data/skin%02d.spr", 32);
-    nbgs = count_files("data/bg%02d.tex", 32);
+    nskins = count_files("data/skin%02d.spr", MAX_SKINS, &skin_files);
+    nbgs = count_files("data/bg%02d.tex", MAX_BGS, &bg_files);
+    srand(plat_us() ^ (unsigned)today_ymd());
     save_load();
-    if (sv.cur_level >= levels.count) sv.cur_level = levels.count - 1;
+    if (sv.cur_level > levels.count + 60000) sv.cur_level = levels.count;
+    if (pos_is_loop(sv.cur_level)) pos_level(sv.cur_level);
     if (!skin_available(sv.skin)) sv.skin = 0;
     if (!bg_available(sv.bg)) sv.bg = 0;
     vram_dyn = gfx_vram_mark();

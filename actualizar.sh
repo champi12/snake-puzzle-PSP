@@ -2,8 +2,9 @@
 # Actualiza el codigo, genera data/ desde tu copia del juego (solo si hace falta), compila y copia la carpeta PSP
 # al escritorio de Windows.
 #
-#   ./actualizar.sh                        busca el juego (.xapk o los .rar partidos) aqui y en el escritorio,
-#                                          y copia el resultado al escritorio de Windows que encuentre
+#   ./actualizar.sh                        busca el juego (.xapk o los .rar partidos) aqui y en el escritorio (si hay
+#                                          varias versiones usa la mas nueva, p. ej. la 14.2.9), y copia el resultado
+#                                          al escritorio de Windows
 #   ./actualizar.sh juego.xapk             juego concreto
 #   ./actualizar.sh juego.xapk "/mnt/c/Users/Joan jimenez/Desktop"
 #                                          ademas elige a que carpeta se copia la carpeta PSP
@@ -35,7 +36,7 @@ desktops() {
 
 # es Snake Puzzle? (el XAPK trae el APK puzzle.snakes...; el APK suelto trae assets/bin/Data)
 is_snake() {
-    python3 - "$1" <<'EOF'
+    python3 - "$1" <<'EOF2'
 import sys, zipfile
 try:
     n = zipfile.ZipFile(sys.argv[1]).namelist()
@@ -43,7 +44,26 @@ except Exception:
     sys.exit(1)
 ok = any('puzzle.snakes' in x for x in n) or 'assets/bin/Data/data.unity3d' in n
 sys.exit(0 if ok else 1)
-EOF
+EOF2
+}
+
+# version del juego (version_name del manifest.json del XAPK, o la del nombre del archivo): para quedarse con la mas
+# nueva si hay varias (la 2.3.4 y la 14.2.9, por ejemplo)
+game_version() {
+    python3 - "$1" <<'EOF2'
+import sys, zipfile, json, re
+v = ''
+try:
+    z = zipfile.ZipFile(sys.argv[1])
+    if 'manifest.json' in z.namelist():
+        v = json.loads(z.read('manifest.json')).get('version_name', '')
+except Exception:
+    pass
+if not v:
+    m = re.search(r'(\d+)[-_.](\d+)[-_.](\d+)', sys.argv[1].split('/')[-1])
+    v = '.'.join(m.groups()) if m else '0'
+print('%05d%05d%05d %s' % tuple([int(x) for x in (re.findall(r'\d+', v) + ['0', '0', '0'])[:3]] + [v]))
+EOF2
 }
 
 echo "== 2/4 Python (entorno para el extractor) =="
@@ -69,33 +89,46 @@ PY=$VENV/bin/python3
 echo "== 3/4 Datos del juego =="
 GAME=${1:-$SNAKE_XAPK}
 if [ -z "$GAME" ]; then
-    # 1) un .xapk/.apk de Snake Puzzle aqui o en el escritorio
+    # 1) los .rar partidos (SnakePuzzle_...14.2.9...part1.rar, snake-puzzle-2-3-4.part1.rar ...): cada uno se
+    #    descomprime una vez en juego/ (se apunta en juego/.hecho)
+    mkdir -p juego
     while IFS= read -r d; do
-        for f in "$d"/*.xapk "$d"/*.apk; do
+        for f in "$d"/*[Ss]nake*part1.rar "$d"/*[Ss]nake*.rar "$d"/*/*[Ss]nake*part1.rar "$d"/*/*[Ss]nake*.rar; do
             [ -f "$f" ] || continue
-            if is_snake "$f"; then GAME="$f"; break 2; fi
+            case "$f" in *.part[2-9].rar|*.part[1-9][0-9].rar) continue ;; esac
+            base=$(basename "$f")
+            grep -qxF "$base" juego/.hecho 2>/dev/null && continue
+            echo "Descomprimiendo $f ..."
+            if command -v unrar > /dev/null; then unrar x -o+ "$f" juego/ > /dev/null
+            elif command -v 7z > /dev/null; then 7z x -y -ojuego "$f" > /dev/null
+            elif command -v unar > /dev/null; then unar -f -o juego "$f" > /dev/null
+            else echo "Para los .rar hace falta unrar: sudo apt install unrar  (o 7zip / unar)"; exit 1; fi
+            echo "$base" >> juego/.hecho
         done
     done < <(echo "."; desktops)
-fi
-if [ -z "$GAME" ]; then
-    # 2) los .rar partidos (snake-puzzle-2-3-4.part1.rar ...): se descomprimen aqui una vez
-    RAR=""
+    # 2) de todos los .xapk/.apk de Snake Puzzle (aqui, en juego/ y en el escritorio), el de version mas alta
+    BEST=""
     while IFS= read -r d; do
-        for f in "$d"/*snake*part1.rar "$d"/*Snake*part1.rar "$d"/*snake*.rar; do
-            [ -f "$f" ] && { RAR="$f"; break 2; }
+        for f in "$d"/*.xapk "$d"/*.apk "$d"/*/*.xapk; do
+            [ -f "$f" ] || continue
+            is_snake "$f" || continue
+            v=$(game_version "$f")
+            if [ -z "$BEST" ] || [ "${v%% *}" \> "${BEST%% *}" ]; then BEST="$v|$f"; fi
         done
-    done < <(echo "."; desktops)
-    if [ -n "$RAR" ]; then
-        echo "Descomprimiendo $RAR ..."
-        mkdir -p juego
-        if command -v unrar > /dev/null; then unrar x -o+ "$RAR" juego/ > /dev/null
-        elif command -v 7z > /dev/null; then 7z x -y -ojuego "$RAR" > /dev/null
-        elif command -v unar > /dev/null; then unar -f -o juego "$RAR" > /dev/null
-        else echo "Para los .rar hace falta unrar: sudo apt install unrar  (o 7zip / unar)"; exit 1; fi
-        for f in juego/*.xapk juego/*/*.xapk; do [ -f "$f" ] && GAME="$f" && break; done
+    done < <(echo "."; echo "juego"; desktops)
+    if [ -n "$BEST" ]; then
+        GAME="${BEST#*|}"
+        V="${BEST%%|*}"
+        echo "Juego: $GAME (version ${V#* })"
     fi
 fi
 VER=$(cat tools/extract.py tools/levels.py tools/unityload.py | sha1sum | cut -c1-16)
+# data/ tambien se rehace si el juego elegido es otro (al pasar de la 2.3.4 a la 14.2.9, por ejemplo)
+GAME_ID=""
+[ -n "$GAME" ] && [ -f "$GAME" ] && GAME_ID=$(stat -c '%s' "$GAME")
+if [ -n "$GAME_ID" ] && [ "$(cat data/.game 2>/dev/null)" != "$GAME_ID" ]; then
+    rm -f data/.version
+fi
 # data/ sin sonido (generada sin libvorbis): se rehace
 SFX_SIZE=$(stat -c %s data/sfx.bin 2>/dev/null || echo 0)
 if [ "$SFX_SIZE" -lt 10000 ] || [ ! -f data/music.mp3 ]; then
@@ -105,7 +138,7 @@ if [ -f data/.version ] && [ "$(cat data/.version)" = "$VER" ]; then
     echo "data/ esta al dia (el extractor no ha cambiado)"
 else
     if [ -z "$GAME" ] || [ ! -f "$GAME" ]; then
-        echo "Hay que generar data/ pero no encuentro el juego (snake-puzzle-2-3-4.xapk o sus .rar)."
+        echo "Hay que generar data/ pero no encuentro el juego (el .xapk de Snake Puzzle 14.2.9 o sus .rar)."
         echo "Ponlo en el escritorio o en esta carpeta, o pasalo: ./actualizar.sh ruta/al/juego.xapk"
         exit 1
     fi
@@ -114,45 +147,17 @@ else
     "$PY" tools/extract.py "$GAME" data.new/
     rm -rf data && mv data.new data
     echo "$VER" > data/.version
+    echo "$GAME_ID" > data/.game
 fi
 
-# el apartado de Apple Worm se quito: sus datos de versiones anteriores no van a la PSP
-rm -rf data/aw
-
-# graficos del selector de niveles (los de Apple Worm): de su .xapk o sus .rar, aqui o en el escritorio. Si no estan,
-# el juego usa su propio selector
-LVV=$(sha1sum tools/lvsel.py | cut -c1-16)
-if [ ! -f data/lvsel.spr ] || [ "$(cat data/.lvsel 2>/dev/null)" != "$LVV" ]; then
-    AW=""
-    while IFS= read -r d; do
-        for f in "$d"/*pple*orm*.xapk "$d"/*appleworm*.xapk; do [ -f "$f" ] && { AW="$f"; break 2; }; done
-    done < <(echo "."; echo "juego_aw"; desktops)
-    if [ -z "$AW" ]; then
-        RAR=""
-        while IFS= read -r d; do
-            for f in "$d"/*pple*orm*part1.rar; do [ -f "$f" ] && { RAR="$f"; break 2; }; done
-        done < <(echo "."; desktops)
-        if [ -n "$RAR" ]; then
-            echo "Descomprimiendo Apple Worm (solo para el selector de niveles): $RAR ..."
-            mkdir -p juego_aw
-            if command -v unrar > /dev/null; then unrar x -o+ "$RAR" juego_aw/ > /dev/null
-            elif command -v 7z > /dev/null; then 7z x -y -ojuego_aw "$RAR" > /dev/null
-            elif command -v unar > /dev/null; then unar -f -o juego_aw "$RAR" > /dev/null; fi
-            for f in juego_aw/*.xapk juego_aw/*/*.xapk; do [ -f "$f" ] && AW="$f" && break; done
-        fi
-    fi
-    if [ -n "$AW" ]; then
-        "$PY" tools/lvsel.py "$AW" data/ && echo "$LVV" > data/.lvsel
-    else
-        echo "(no encuentro Apple Worm: la pantalla de niveles usa el selector de Snake Puzzle)"
-    fi
-fi
+# Apple Worm se quito del todo (tambien su selector de niveles: la pantalla NIVELES es la de Snake Puzzle 14.2.9)
+rm -rf data/aw data/lvsel.spr data/lvsel.idx data/.lvsel
 
 echo "== 4/4 Compilando =="
 [ -z "$PSPDEV" ] && export PSPDEV=$HOME/pspdev && export PATH=$PSPDEV/bin:$PATH
 command -v psp-gcc > /dev/null || { echo "No encuentro psp-gcc: exporta PSPDEV con la ruta de pspdev"; exit 1; }
 ./build_dist.sh
-rm -f dist/PSP/GAME/SNAKEPZL/data/.version dist/PSP/GAME/SNAKEPZL/data/.lvsel
+rm -f dist/PSP/GAME/SNAKEPZL/data/.version dist/PSP/GAME/SNAKEPZL/data/.game
 
 DEST=$2
 # destino fijo de Joan: C:\Users\Joan jimenez\Desktop\PSP\GAME\SNAKEPZL

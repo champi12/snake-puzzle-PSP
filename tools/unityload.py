@@ -31,10 +31,11 @@ def unpack(src):
     Devuelve (carpeta assets/bin/Data, ruta de libil2cpp.so)."""
     if os.path.isdir(src):
         data = os.path.join(src, 'assets', 'bin', 'Data')
-        for root, _, files in os.walk(src):
-            if 'libil2cpp.so' in files and 'arm64' in root:
-                return data, os.path.join(root, 'libil2cpp.so')
-        raise SystemExit('No encuentro lib/arm64-v8a/libil2cpp.so en ' + src)
+        for arch in ('arm64', 'armeabi'):
+            for root, _, files in os.walk(src):
+                if 'libil2cpp.so' in files and arch in root:
+                    return data, os.path.join(root, 'libil2cpp.so')
+        raise SystemExit('No encuentro lib/*/libil2cpp.so en ' + src)
     tmp = tempfile.mkdtemp(prefix='snake_apk_')
     atexit.register(shutil.rmtree, tmp, True)
     apks = []
@@ -50,20 +51,24 @@ def unpack(src):
         else:
             apks.append(src)
             d = os.path.dirname(os.path.abspath(src))
-            for f in os.listdir(d):                           # split de arm64 junto al APK base
-                if f.endswith('.apk') and 'arm64' in f:
+            for f in os.listdir(d):                           # split de arm64 o armeabi-v7a junto al APK base
+                if f.endswith('.apk') and ('arm64' in f or 'armeabi' in f):
                     apks.append(os.path.join(d, f))
     out = os.path.join(tmp, 'x')
     for a in apks:
         with zipfile.ZipFile(a) as z:
             _unzip_members(z, 'assets/bin/Data/', out)
             _unzip_members(z, 'lib/arm64-v8a/libil2cpp.so', out)
+            _unzip_members(z, 'lib/armeabi-v7a/libil2cpp.so', out)
     data = os.path.join(out, 'assets', 'bin', 'Data')
+    # 2.3.4 traia ARM64; 14.2.9 solo trae armeabi-v7a (los dos sirven para generar la estructura de los scripts)
     so = os.path.join(out, 'lib', 'arm64-v8a', 'libil2cpp.so')
+    if not os.path.exists(so):
+        so = os.path.join(out, 'lib', 'armeabi-v7a', 'libil2cpp.so')
     if not os.path.exists(os.path.join(data, 'data.unity3d')):
         raise SystemExit('El APK no tiene assets/bin/Data/data.unity3d: no parece Snake Puzzle')
     if not os.path.exists(so):
-        raise SystemExit('Falta lib/arm64-v8a/libil2cpp.so (usa el .xapk completo o pon config.arm64_v8a.apk al lado)')
+        raise SystemExit('Falta libil2cpp.so (usa el .xapk completo o pon config.arm64_v8a.apk / config.armeabi_v7a.apk al lado)')
     return data, so
 
 
@@ -81,7 +86,14 @@ class Game:
                     if hasattr(f2, 'objects'):
                         self.files[str(k2).split('/')[-1]] = f2
         self.res = self.files['resources.assets']
-        self.gen = TypeTreeGenerator(UNITY_VERSION)
+        ver = UNITY_VERSION
+        for f in self.files.values():
+            v = getattr(f, 'unity_version', '')
+            if v and v[0].isdigit():
+                ver = v
+                break
+        self.unity_version = ver
+        self.gen = TypeTreeGenerator(ver)
         with open(so, 'rb') as a, open(os.path.join(self.data_dir, 'Managed', 'Metadata', 'global-metadata.dat'), 'rb') as b:
             self.gen.load_il2cpp(a.read(), b.read())
         self._nodes = {}

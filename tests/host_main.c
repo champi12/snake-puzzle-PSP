@@ -190,7 +190,8 @@ int main(int argc, char **argv)
         load_skin(1);   /* se mide desde un estado con aspecto y fondo ya cargados */
         load_skin(0);
         struct mallinfo2 a = mallinfo2();
-        for (int k = 1; k < 60; k++) load_skin(k % (nskins ? nskins : 1));
+        for (int k = 1; k < 60; k++)
+            if (skin_exists(k % (nskins ? nskins : 1))) load_skin(k % (nskins ? nskins : 1));
         load_skin(0);
         struct mallinfo2 b = mallinfo2();
         printf("memoria tras 60 cambios de aspecto: %+ld KB\n", ((long)b.uordblks - (long)a.uordblks) / 1024);
@@ -209,5 +210,141 @@ int main(int argc, char **argv)
     shot("clasico_fin");
     printf("pantalla final %s, nivel en curso %d, %d superados, %d fichas, %d pistas\n", dbg_state_name(gstate),
            sv.cur_level + 1, levels_won_count(), sv.tokens, sv.hints);
-    return 0;
+    int fails = 0;
+    /* partida de la version 1 (port de la 2.3.4): se convierte sin perder nada */
+    {
+        struct {
+            uint32_t magic, version;
+            uint16_t cur_level;
+            uint8_t won[MAX_LEVELS / 8 + 1];
+            uint16_t hints, skips;
+            uint16_t tokens;
+            uint8_t skin, bg;
+            uint32_t skins_owned, bgs_owned;
+            uint8_t skin_paid[32], bg_paid[32];
+            uint8_t sound, music;
+            uint8_t daily_day;
+            uint32_t daily_last;
+            uint16_t classic_best;
+            uint8_t progress_done;
+            uint8_t event_done;
+            uint32_t total_wins;
+            uint32_t play_seconds;
+        } v1;
+        memset(&v1, 0, sizeof(v1));
+        v1.magic = 0x4b4e5350u;
+        v1.version = 1;
+        v1.cur_level = levels.count - 1;
+        for (int i = 0; i < levels.count - 1; i++) v1.won[i >> 3] |= 1 << (i & 7);
+        v1.hints = 7; v1.skips = 2; v1.tokens = 41; v1.skin = 3; v1.bg = 2;
+        v1.skins_owned = 0x9u | 1u << 27; v1.bgs_owned = 0x5;
+        v1.skin_paid[5] = 2; v1.bg_paid[4] = 1;
+        v1.sound = 1; v1.music = 0; v1.daily_day = 4; v1.daily_last = 20260101; v1.classic_best = 33;
+        v1.progress_done = 5; v1.total_wins = 400; v1.play_seconds = 7777;
+        FILE *f = fopen("save.dat", "wb");
+        fwrite(&v1, 1, sizeof(v1), f);
+        fwrite("APPLEWORM-EXTRA", 1, 15, f);   /* las de la epoca de Apple Worm eran mas largas */
+        fclose(f);
+        extern int save_load(void);
+        save_load();
+        int ok = sv.version == 2 && sv.cur_level == levels.count - 1 && sv.hints == 7 && sv.skips == 2 && sv.tokens == 41 &&
+                 sv.skin == 3 && sv.bg == 2 && sv.skins_owned == (0x9u | 1u << 27) && sv.bgs_owned == 0x5 &&
+                 sv.skin_paid[5] == 2 && sv.bg_paid[4] == 1 && !sv.music && sv.daily_day == 4 && sv.classic_best == 33 &&
+                 sv.progress_done == 5 && sv.total_wins == 400 && sv.play_seconds == 7777 &&
+                 levels_won_count() == levels.count - 1 && sv.loop_real[0] == 0xffff;
+        printf("partida v1 -> v2: %s\n", ok ? "OK" : "MAL");
+        fails += !ok;
+        save_load();   /* ya guardada como v2: se vuelve a leer igual */
+        ok = sv.version == 2 && sv.tokens == 41 && sv.skins_owned == (0x9u | 1u << 27);
+        printf("partida v2 releida: %s\n", ok ? "OK" : "MAL");
+        fails += !ok;
+    }
+    /* bucle de niveles (UserLevelInfo): superar el ultimo nivel lleva al nivel 267 con un nivel real al azar */
+    {
+        int last = levels.count - 1;
+        play_solution(last, -1);
+        frames(200, 0);
+        while (gstate == GS_REWARD) frames(2, IN_CIRCLE);   /* premio de progreso antes de la ventana de superado */
+        shot("ultimo_superado");
+        int ok = gstate == GS_WIN && sv.cur_level == levels.count;
+        printf("  (tras el ultimo: pantalla %s, posicion en curso %d, jugado %d)\n", dbg_state_name(gstate), sv.cur_level + 1,
+               play_pos + 1);
+        frames(2, IN_CROSS);   /* SIGUIENTE */
+        frames(40, 0);
+        shot("bucle_nivel267");
+        ok = ok && gstate == GS_PLAY && play_pos == levels.count && play_idx >= 0 && play_idx < levels.count;
+        int num = cur_level.num;
+        for (int i = 0; i < meta.nignore; i++) ok = ok && meta.ignore[i] != num;
+        printf("bucle: tras el ultimo nivel -> posicion %d, nivel real %d: %s\n", play_pos + 1, num, ok ? "OK" : "MAL");
+        fails += !ok;
+        /* el mismo nivel del bucle al reintentar */
+        int was = play_idx;
+        play_start(play_pos, 0);
+        ok = play_idx == was;
+        printf("bucle: reintentar da el mismo nivel: %s\n", ok ? "OK" : "MAL");
+        fails += !ok;
+        /* 400 niveles del bucle: nunca uno ignorado; sin repetir hasta agotar los posibles */
+        static int seen[MAX_LEVELS];
+        int pool = 0;
+        for (int i = 0; i < levels.count; i++) {
+            int ig = 0, n = levels_num(&levels, i);
+            for (int k = 0; k < meta.nignore; k++) ig |= meta.ignore[k] == n;
+            pool += !ig;
+        }
+        int bad = 0, firstrep = -1;
+        for (int k = 0; k < 400; k++) {
+            int pos = sv.cur_level;
+            int idx = pos_level(pos);
+            int n = levels_num(&levels, idx);
+            for (int i = 0; i < meta.nignore; i++) bad += meta.ignore[i] == n;
+            if (seen[idx]++ && firstrep < 0) firstrep = k;
+            pos_advance(pos);
+        }
+        ok = !bad && firstrep >= pool - LOOP_AHEAD - 2;
+        printf("bucle: 400 niveles, %d ignorados, posibles %d, primera repeticion en el %d: %s\n", bad, pool, firstrep,
+               ok ? "OK" : "MAL");
+        fails += !ok;
+        sv.cur_level = levels.count - 1;
+    }
+    /* selector con manzanas: superados, saltado, actual y bloqueados */
+    {
+        memset(sv.won, 0, sizeof(sv.won));
+        memset(sv.skipped, 0, sizeof(sv.skipped));
+        for (int i = 0; i < 9; i++) level_set_won(i);
+        level_set_skipped(4, 1);
+        sv.cur_level = 9;
+        set_state(GS_SELECT);
+        frames(2, 0);
+        shot("niveles_manzanas");
+        frames(2, IN_R);
+        shot("niveles_pagina2");
+    }
+    /* tienda de la 14.2.9: aspectos nuevos y paquetes de temporada */
+    {
+        sv.tokens = 200;
+        ui_open_shop();
+        frames(2, 0);
+        shot("tienda_1429");
+        frames(2, IN_R);
+        shot("tienda_fondos_1429");
+        frames(2, IN_R);
+        shot("tienda_packs_1429");
+        int bought = 0;
+        for (int k = 0; k < 5; k++) {   /* los de temporada y la oferta van al final: se compran de abajo arriba */
+            for (int j = 0; j < 20; j++) frames(1, IN_DOWN);
+            frames(2, IN_CROSS);
+            while (gstate == GS_REWARD) { frames(2, IN_CIRCLE); bought++; }
+            set_state(GS_SHOP);
+        }
+        shot("tienda_packs_comprados");
+        int ok = skin_available(30) + skin_available(31) + skin_available(32) + skin_available(33) == 4 ? 1 : 0;
+        printf("tienda: %d premios de paquetes, aspectos 30-33: %s\n", bought, ok ? "OK" : "MAL");
+        fails += !ok;
+        set_state(GS_SHOP);
+        frames(2, IN_L);
+        frames(2, IN_L);
+        shot("tienda_aspectos_comprados");
+    }
+    printf("pruebas 14.2.9: %s\n", fails ? "FALLOS" : "todo bien");
+    return fails ? 1 : 0;
 }

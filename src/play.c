@@ -19,6 +19,7 @@
 
 Level cur_level;
 int play_idx = -1;
+int play_pos;                  /* posicion jugada (en el bucle no coincide con play_idx) */
 int play_hint;                 /* modo pista: solo se acepta el siguiente paso de la solucion */
 static int hint_pos;
 static GLevel G;
@@ -56,10 +57,13 @@ static void layout(void)
 static float sx(float cx) { return ox + (cx + 0.5f) * cs; }
 static float sy(float cy) { return oy + (G.h - cy - 0.5f) * cs; }
 
-void play_start(int idx, int hint_mode)
+void play_start(int pos, int hint_mode)
 {
-    if (idx < 0) idx = 0;
+    if (pos < 0) pos = 0;
+    if (pos > sv.cur_level && pos_is_loop(pos)) pos = sv.cur_level;   /* del bucle solo se llega al siguiente */
+    int idx = pos_level(pos);
     if (idx >= levels.count) idx = levels.count - 1;
+    play_pos = pos;
     if (play_idx != idx) {
         if (level_get(&levels, idx, &cur_level)) {
             dlog_error("nivel %d no valido", idx);
@@ -84,8 +88,12 @@ void play_start(int idx, int hint_mode)
     layout();
     dbg_game.level = cur_level.num;
     dbg_game.moves = 0;
-    dlog("NIVEL %d (indice %d) %dx%d, %d casillas, %d objetos%s", cur_level.num, idx, G.w, G.h, cur_level.ntiles,
-         cur_level.nobj, hint_mode ? " - modo pista" : "");
+    if (pos_is_loop(pos))
+        dlog("NIVEL %d del bucle = nivel real %d (indice %d) %dx%d, %d casillas, %d objetos%s", pos + 1, cur_level.num,
+             idx, G.w, G.h, cur_level.ntiles, cur_level.nobj, hint_mode ? " - modo pista" : "");
+    else
+        dlog("NIVEL %d (indice %d) %dx%d, %d casillas, %d objetos%s", cur_level.num, idx, G.w, G.h, cur_level.ntiles,
+             cur_level.nobj, hint_mode ? " - modo pista" : "");
     set_state(GS_PLAY);
 }
 
@@ -144,7 +152,7 @@ void play_input(unsigned in, unsigned held)
     }
     if (in & IN_TRIANGLE) {           /* reiniciar (Btn_Replay) */
         play_sfx(SFX_CLICK);
-        play_start(play_idx, play_hint);
+        play_start(play_pos, play_hint);
     }
     if ((in & IN_L) && undo_n > 0 && !play_hint) {   /* deshacer */
         S = undo_buf[--undo_n];
@@ -161,36 +169,51 @@ void play_input(unsigned in, unsigned held)
             sv.hints--;
             game_save();
             play_sfx(SFX_REWARD);
-            play_start(play_idx, 1);
+            play_start(play_pos, 1);
         } else
             ui_message(T("No te quedan pistas: consiguelas en el Diario y en el modo Clasico"), 2.5f);
     }
     if (in & IN_R) {                  /* saltar nivel (Icon_SkipLevel) */
         if (sv.skips > 0) {
             sv.skips--;
-            level_set_won(play_idx);
-            if (play_idx + 1 < levels.count && sv.cur_level <= play_idx) sv.cur_level = play_idx + 1;
-            game_save();
+            play_skip();
             play_sfx(SFX_CLICK);
-            dlog("SALTO nivel %d", cur_level.num);
-            play_start(play_idx + 1 < levels.count ? play_idx + 1 : play_idx, 0);
+            play_start(play_pos + 1, 0);
         } else
             ui_message(T("No te quedan saltos de nivel"), 1.5f);
     }
 }
 
+/* saltar el nivel (Icon_SkipLevel / LoseController.NextLevelButton): cuenta como superado y queda marcado */
+void play_skip(void)
+{
+    if (!pos_is_loop(play_pos)) {
+        if (!level_won(play_idx)) level_set_skipped(play_idx, 1);   /* UserInfo.AddLevelSkip */
+        level_set_won(play_idx);
+    }
+    pos_advance(play_pos);
+    game_save();
+    dlog("SALTO nivel %d (posicion %d)", cur_level.num, play_pos + 1);
+}
+
 static void on_win(void)
 {
-    int first = !level_won(play_idx);
-    level_set_won(play_idx);
+    /* primera vez: un nivel normal no superado, o una posicion nueva del bucle */
+    int first = pos_is_loop(play_pos) ? play_pos >= sv.cur_level : !level_won(play_idx);
+    if (!pos_is_loop(play_pos)) {
+        level_set_won(play_idx);
+        level_set_skipped(play_idx, 0);   /* UserInfo.RemoveLevelSkip */
+    }
     sv.total_wins++;
     if (first) {
         sv.tokens++;                  /* en vez de ver un anuncio */
-        if (levels_won_count() % 5 == 0) sv.hints++;
+        /* cada 5 niveles nuevos, +1 pista (en el bucle, cada 5 posiciones) */
+        if (pos_is_loop(play_pos) ? (play_pos + 1) % 5 == 0 : levels_won_count() % 5 == 0) sv.hints++;
     }
-    if (play_idx + 1 < levels.count && sv.cur_level <= play_idx) sv.cur_level = play_idx + 1;
+    pos_advance(play_pos);
     game_save();
-    dlog("SUPERADO nivel %d en %d movimientos%s", cur_level.num, moves, first ? " (primera vez: +1 ficha)" : "");
+    dlog("SUPERADO nivel %d%s en %d movimientos%s", play_pos + 1, pos_is_loop(play_pos) ? " (bucle)" : "", moves,
+         first ? " (primera vez: +1 ficha)" : "");
     play_sfx(SFX_WIN);
     set_state(GS_WIN);
     shop_unlock_check();
@@ -586,7 +609,7 @@ void play_draw(void)
     unsigned t4 = plat_us();
     gfx_fill(0, 0, SCR_W, 22, RGBA(0, 0, 0, 90));
     char b[64];
-    snprintf(b, sizeof(b), T("NIVEL %d"), play_idx + 1);
+    snprintf(b, sizeof(b), T("NIVEL %d"), play_pos + 1);
     text_draw(SCR_W / 2, 2, FONT_M, b, WHITE, 1);
     gfx_sprite_fit(&world, WSPR(UI_ICON_HINT), 12, 11, 18, 18, WHITE);
     snprintf(b, sizeof(b), "%d", sv.hints);

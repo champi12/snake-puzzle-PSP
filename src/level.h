@@ -62,6 +62,7 @@ typedef struct {
 } LevelPack;
 
 int levels_open(LevelPack *p, const char *path);   /* 0 si bien */
+int levels_num(const LevelPack *p, int index);     /* numero del nivel (Level_N del original) */
 int level_get(const LevelPack *p, int index, Level *out);
 void levels_close(LevelPack *p);
 

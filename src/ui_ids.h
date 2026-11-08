@@ -74,6 +74,13 @@ enum {
     UI_BTN_MOVE = W_UI + 65,
     UI_BTN_MOVE_ACTIVE = W_UI + 66,
     UI_ICON_MOVE_0 = W_UI + 67,
-    UI_COUNT = 68
+    /* 14.2.9: selector de niveles (LevelSelectElement: sprPass, sprCurrent, sprLock, sprSkip) y la oferta limitada */
+    UI_APPLE_GREEN = W_UI + 68,
+    UI_APPLE_YELLOW = W_UI + 69,
+    UI_APPLE_GRAY = W_UI + 70,
+    UI_APPLE_RED = W_UI + 71,
+    UI_PAGE_BASE = W_UI + 72,
+    UI_ICON_LIMITEDOFFER = W_UI + 73,
+    UI_COUNT = 74
 };
 #endif
