@@ -224,6 +224,11 @@ def export_levels(G, out, world):
         n = level_index(path)
         if n is None:
             continue
+        # la 14.2.9 trae versiones nuevas de algunos niveles (Level_N_a: 5, 11 y 113, con su pista hint/level_N_a);
+        # el juego las usa con level_test_ver2 (LevelManager.LoadLevel): se usan esas
+        if G.get(path + '_a', 'GameObject') is not None:
+            print('  nivel %d: version nueva (level_%d_a)' % (n, n))
+            path = path + '_a'
         L = extract_level(G, G.get(path, 'GameObject'), sprites, n)
         if not any(ly['cells'] for ly in L['layers']) or not L['snake'] or not L['goal']:
             print('  nivel %d vacio en el APK (el original lo sustituia por configuracion remota): se omite' % n)

@@ -86,6 +86,26 @@ int main(int argc, char **argv)
     lang_init(getenv("HOST_LANG") ? atoi(getenv("HOST_LANG")) : 3);
     gfx_init();
     game_init();
+    if (getenv("HOST_LEVELS")) {   /* solo capturas del primer momento de esos niveles: HOST_LEVELS="56 73 133" */
+        char buf[256];
+        snprintf(buf, sizeof(buf), "%s", getenv("HOST_LEVELS"));
+        for (char *t = strtok(buf, " ,"); t; t = strtok(NULL, " ,")) {
+            int num = atoi(t);
+            for (int i = 0; i < levels.count; i++)
+                if (levels_num(&levels, i) == num) {
+                    sv.cur_level = i;
+                    play_start(i, 0);
+                    frames(1, 0);
+                    char b[32];
+                    snprintf(b, sizeof(b), "inicio_nivel%d", num);
+                    shot(b);
+                    frames(60, 0);
+                    snprintf(b, sizeof(b), "inicio_nivel%d_b", num);
+                    shot(b);
+                }
+        }
+        return 0;
+    }
     shot("inicio");
     frames(2, IN_DOWN);
     frames(2, IN_CROSS);
