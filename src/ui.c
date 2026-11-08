@@ -419,23 +419,6 @@ static void pause_input(unsigned in)
     if (in & IN_CROSS && sel == 2) { sel = 0; set_state(GS_HOME); }
 }
 
-static void progress_bar(float x, float y, float w)
-{
-    int st, en, id, type;
-    if (progress_next(&st, &en, &id, &type) < 0) return;
-    int won = levels_won_count();
-    float f = (won - (st - 1)) / (float)(en - st + 1);
-    if (f < 0) f = 0;
-    if (f > 1) f = 1;
-    gfx_fill(x, y, w, 12, RGBA(0, 0, 0, 120));
-    gfx_fill(x + 2, y + 2, (w - 4) * f, 8, RGBA(250, 200, 40, 255));
-    char b[64];
-    snprintf(b, sizeof(b), T(type ? "Fondo nuevo: %d%%" : "Aspecto nuevo: %d%%"), (int)(f * 100));
-    text_draw(x + w / 2, y + 14, FONT_S, b, TXT_DARK, 1);
-    int icon = type ? bg_icon(id) : skin_icon(id);
-    if (icon >= 0) gfx_sprite_fit(&shop_sheet, icon, x + w + 26, y + 8, 40, 40, f >= 1 ? WHITE : RGBA(120, 120, 120, 255));
-}
-
 /* ---------------------------------------------------------------- superado (RewardProgressPopup + WinPopup)
  * Si el nivel es nuevo y hay un aspecto o fondo en camino (SkinProgress), primero sale RewardProgressPopup: el titulo
  * New Skin/New BG sobre Title_Base, rayos de luz y la silueta (progress_N) llenandose (full_N) hasta el nuevo %. Luego
@@ -522,7 +505,7 @@ static void win_draw(void)
         snprintf(b, sizeof(b), T("Estas en el top %d,%02d%% de jugadores"), pct / 100, pct % 100);
         text_draw(241, 134, FONT_S, b, RGBA(200, 90, 30, 255), 1);
     }
-    progress_bar(165, 147, 110);
+    /* sin barra de progreso: en la 14.2.9 el progreso sale antes, en RewardProgressPopup (New Skin) */
     draw_button(171, 168, 140, 40, T("SIGUIENTE"), 1, 1);
     help(T(BTN_X " Siguiente   " BTN_O " Inicio"));
 }
