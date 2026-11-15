@@ -85,7 +85,11 @@ int main(int argc, char **argv)
     remove("save.dat");
     lang_init(getenv("HOST_LANG") ? atoi(getenv("HOST_LANG")) : 3);
     gfx_init();
+    loading_begin();
+    loading_step(0.6f);
+    host_shot("out/carga.ppm");
     game_init();
+    loading_end();
     if (getenv("HOST_LEVELS")) {   /* solo capturas del primer momento de esos niveles: HOST_LEVELS="56 73 133" */
         char buf[256];
         snprintf(buf, sizeof(buf), "%s", getenv("HOST_LEVELS"));

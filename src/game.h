@@ -128,7 +128,10 @@ int pos_level(int pos);            /* indice del nivel que se juega en la posici
 int pos_is_loop(int pos);
 int pos_number(int pos);           /* numero del nivel que se ensena (Level_N; en el bucle 271, 272...) */
 void pos_advance(int pos);         /* pos superado o saltado: sv.cur_level pasa a la siguiente */
-void shop_assets(void);           /* carga data/shop.spr (en la RAM) la primera vez que hace falta */
+void shop_assets(void);
+void loading_begin(void);         /* pantalla de carga del original mientras arranca */
+void loading_step(float f);
+void loading_end(void);           /* carga data/shop.spr (en la RAM) la primera vez que hace falta */
 void load_skin(int id);
 void load_bg(int id);
 void shop_unlock_check(void);      /* desbloqueos por progreso (SkinProgress) */

@@ -195,6 +195,38 @@ void gfx_sprite_rect_bottom(const Sheet *s, int id, float x, float y, float w, f
     be_quad(v, color);
 }
 
+void gfx_sprite_rect_left(const Sheet *s, int id, float x, float y, float w, float h, float frac, uint32_t color)
+{
+    if (!s || id < 0 || id >= s->nspr || frac <= 0) return;
+    if (frac > 1) frac = 1;
+    const Spr *r = &s->spr[id];
+    float x1 = x + w * frac, tx1 = r->x + r->w * frac;
+    float v[16] = {x, y, r->x, r->y, x, y + h, r->x, r->y + r->h,
+                   x1, y, tx1, r->y, x1, y + h, tx1, r->y + r->h};
+    be_bind(&s->pages[r->page]);
+    be_quad(v, color);
+}
+
+static void quad_uv(const Tex *t, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint32_t c)
+{
+    float v[16] = {x0, y0, u0, v0, x0, y1, u0, v1, x1, y0, u1, v0, x1, y1, u1, v1};
+    be_bind(t);
+    be_quad(v, c);
+}
+
+void gfx_sprite_hslice(const Sheet *s, int id, float x, float y, float w, float h, float bf, uint32_t color)
+{
+    if (!s || id < 0 || id >= s->nspr) return;
+    const Spr *r = &s->spr[id];
+    const Tex *t = &s->pages[r->page];
+    float cap = r->h ? h * bf * r->w / r->h : 0;   /* los extremos con su proporcion */
+    if (cap * 2 > w) cap = w / 2;
+    float ub = r->w * bf;
+    quad_uv(t, x, y, x + cap, y + h, r->x, r->y, r->x + ub, r->y + r->h, color);
+    quad_uv(t, x + cap, y, x + w - cap, y + h, r->x + ub, r->y, r->x + r->w - ub, r->y + r->h, color);
+    quad_uv(t, x + w - cap, y, x + w, y + h, r->x + r->w - ub, r->y, r->x + r->w, r->y + r->h, color);
+}
+
 void gfx_sprite_fit(const Sheet *s, int id, float x, float y, float w, float h, uint32_t color)
 {
     if (!s || id < 0 || id >= s->nspr) return;

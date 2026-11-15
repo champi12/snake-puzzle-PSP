@@ -69,6 +69,10 @@ void gfx_sprite_angle(const Sheet *s, int id, float x, float y, float scale, flo
 void gfx_sprite_rect(const Sheet *s, int id, float x, float y, float w, float h, uint32_t color);
 /* solo la parte de abajo (frac de 0 a 1) de un sprite estirado a un rectangulo: Image.fillAmount vertical */
 void gfx_sprite_rect_bottom(const Sheet *s, int id, float x, float y, float w, float h, float frac, uint32_t color);
+/* solo la parte de la izquierda (frac de 0 a 1): Image con Mask, como la barra de carga */
+void gfx_sprite_rect_left(const Sheet *s, int id, float x, float y, float w, float h, float frac, uint32_t color);
+/* pieza elastica en horizontal (9-slice de Unity): los extremos (bf = borde / ancho del sprite) sin estirar */
+void gfx_sprite_hslice(const Sheet *s, int id, float x, float y, float w, float h, float bf, uint32_t color);
 /* sprite centrado en (x, y) y escalado para caber en w x h sin deformarse */
 void gfx_sprite_fit(const Sheet *s, int id, float x, float y, float w, float h, uint32_t color);
 /* ancho y alto del sprite en unidades (para colocarlo) */

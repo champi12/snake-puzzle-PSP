@@ -6,8 +6,8 @@ OBJS = src/main.o src/gfx.o src/gfx_psp.o src/level.o src/logic.o src/game.o src
 INCDIR = src
 CFLAGS = -O2 -G0 -g -Wall -ffast-math -fno-strict-aliasing -MMD -MP
 CFLAGS += $(EXTRA)
-# devlog activado salvo DEVLOG=0 (version publica)
-DEVLOG ?= 1
+# version publica por defecto (sin devlog); DEVLOG=1 para la de pruebas (devlog.txt y crash.txt)
+DEVLOG ?= 0
 CFLAGS += -DDEVLOG=$(DEVLOG)
 # stick analogico: desactivado por ahora (fallaba en la consola de pruebas); make ANALOG=1 para usarlo
 ANALOG ?= 0

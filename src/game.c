@@ -12,6 +12,7 @@
 #include "audio.h"
 #include "devlog.h"
 #include "ui_ids.h"
+#include "lang.h"
 
 Sheet world, skin_sheet, shop_sheet;
 int16_t widx[160];
@@ -23,6 +24,7 @@ static uint64_t skin_files, bg_files;   /* que data/skinNN.spr y data/bgNN.tex h
 int gstate = GS_LOADING;
 float gtime;
 static int loaded_skin = -1, loaded_bg = -1;
+static int font_ready;              /* la fuente ya cargada por la pantalla de carga */
 
 extern int save_load(void);
 extern int meta_load(const char *path);
@@ -322,10 +324,12 @@ void game_init(void)
     load_begin();
     if (levels_open(&levels, "data/levels.bin")) fatal_error("Falta data/levels.bin");
     load_end("levels.bin", levels.size);
+    loading_step(0.35f);
     if (meta_load("data/meta.bin")) dlog_error("falta data/meta.bin: sin tienda ni progreso");
     load_begin();
     if (sheet_load(&world, "data/world.spr")) fatal_error("Falta data/world.spr");
     load_end("world.spr", world.bytes);
+    loading_step(0.6f);
     FILE *f = fopen("data/world.idx", "rb");
     if (f) {
         uint8_t b[2];
@@ -337,15 +341,19 @@ void game_init(void)
         }
         fclose(f);
     }
-    load_begin();
-    if (font_load("data/font.spr", "data/font.idx")) dlog_error("falta la fuente (data/font.spr)");
-    else load_end("font.spr", 0);
+    if (!font_ready) {
+        load_begin();
+        if (font_load("data/font.spr", "data/font.idx")) dlog_error("falta la fuente (data/font.spr)");
+        else { load_end("font.spr", 0); font_ready = 1; }
+    }
+    loading_step(0.7f);
     /* la pantalla de inicio y la tienda son de los menus: en la RAM, para dejar la VRAM al juego (atlas, fuente,
      * aspecto y fondo del nivel). La tienda se carga la primera vez que hace falta (shop_assets) */
     load_begin();
     gfx_ram_only = 1;
     if (bg_load(&home_tex, "data/home.tex") == 0) load_end("home.tex (RAM)", home_tex.bytes);
     gfx_ram_only = 0;
+    loading_step(0.8f);
     nskins = count_files("data/skin%02d.spr", MAX_SKINS, &skin_files);
     nbgs = count_files("data/bg%02d.tex", MAX_BGS, &bg_files);
     srand(plat_us() ^ (unsigned)today_ymd());
@@ -357,6 +365,7 @@ void game_init(void)
     vram_dyn = gfx_vram_mark();
     load_skin(sv.skin);
     load_bg(sv.bg);
+    loading_step(0.95f);
     audio_set_enabled(sv.sound, sv.music);
     audio_music(event_now() == 3);
     dlog("Juego: %d niveles, %d aspectos, %d fondos, %d articulos de tienda | partida: nivel %d, %d superados, %d pistas, "
@@ -364,6 +373,52 @@ void game_init(void)
          sv.skips, sv.tokens);
     shop_unlock_check();
     set_state(GS_HOME);
+}
+
+/* ---------------------------------------------------------------- pantalla de carga (screens/loadatascene)
+ * Background_Loading, Logo_v12, la barra (Progress2, Progress1 que se llena, Outline) y "LOADING..." con puntos
+ * (LoadingDotsAnimation). Todo a 1/4 y en la RAM; se libera al terminar de cargar. */
+static Sheet load_sheet;
+static Tex load_tex;
+static int load_steps;
+
+void loading_step(float f)
+{
+    if (!load_tex.pixels && !load_sheet.nspr && !font_ready) return;
+    gfx_begin(RGBA(170, 220, 235, 255));
+    if (load_tex.pixels) gfx_bg(&load_tex, WHITE);
+    gfx_sprite_fit(&load_sheet, 0, 240, 71, 196, 86, WHITE);
+    float x = 240 - 237 / 2.0f, y = 181 - 13.5f / 2;
+    /* Progress2 y Outline son 9-slice de 54x54 con bordes de 26 */
+    gfx_sprite_hslice(&load_sheet, 2, x, y, 237, 13.5f, 26 / 54.0f, WHITE);
+    gfx_sprite_rect_left(&load_sheet, 1, x + 1.5f, y + 1, 234, 11.5f, f, WHITE);
+    gfx_sprite_hslice(&load_sheet, 3, x, y, 237, 13.5f, 26 / 54.0f, WHITE);
+    if (font_ready) {
+        static const char *dots[4] = {"", ".", "..", "..."};
+        char b[32];
+        snprintf(b, sizeof(b), "%s%s", T("CARGANDO"), dots[load_steps++ & 3]);
+        text_draw(240 - text_width(FONT_L, T("CARGANDO")) / 2, 204 - text_height(FONT_L) / 2, FONT_L, b,
+                  RGBA(92, 40, 20, 255), 0);
+    }
+    gfx_end();
+}
+
+void loading_begin(void)
+{
+    gfx_ram_only = 1;
+    bg_load(&load_tex, "data/loading.tex");
+    sheet_load(&load_sheet, "data/loading.spr");
+    gfx_ram_only = 0;
+    loading_step(0.02f);
+    if (font_load("data/font.spr", "data/font.idx") == 0) font_ready = 1;
+    loading_step(0.1f);
+}
+
+void loading_end(void)
+{
+    loading_step(1.0f);
+    sheet_free(&load_sheet);
+    tex_free(&load_tex);
 }
 
 /* iconos y graficos de la tienda (shop.spr): solo cuando se entra en una pantalla que los usa, y en la RAM */

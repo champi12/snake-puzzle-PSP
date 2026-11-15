@@ -237,11 +237,15 @@ void play_update(float dt)
             int was_fall = steps.step[step_i].kind == STEP_FALL;
             shown_from = steps.step[step_i].st;
             step_i++;
-            /* al terminar la caida: golpe al aterrizar; si cae sobre pinchos o una sierra, su efecto (thorn); si cae
-             * al vacio, nada (luego suena el de perder) */
+            /* al terminar la caida, como el original: la serpiente que cae al vacio hace "drop"
+             * (FallTimeoutCoroutine, antes de GameOver("fall_off")); sobre pinchos o una sierra, su efecto (thorn); si
+             * aterriza no suena nada. Las piedras, "stone_drop" al aterrizar (Stone.FixedUpdate). */
             if (!animating() && was_fall) {
-                if (steps.snake_fell && S.dead == DEAD_TRAP) play_sfx(SFX_THORN);
-                else if (!(steps.snake_fell && S.dead)) play_sfx(steps.snake_fell ? SFX_DROP : SFX_STONE_DROP);
+                if (steps.snake_fell) {
+                    if (S.dead == DEAD_FALL) play_sfx(SFX_DROP);
+                    else if (S.dead == DEAD_TRAP) play_sfx(SFX_THORN);
+                } else
+                    play_sfx(SFX_STONE_DROP);
             }
         }
         if (!animating()) step_t = 0;

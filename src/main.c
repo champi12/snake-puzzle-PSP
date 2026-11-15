@@ -231,8 +231,11 @@ int main(int argc, char **argv)
     gfx_init();
     dlog("GE iniciado: VRAM pantallas %u KB (16 bits, doble buffer, sin Z), %u KB libres para texturas",
          (unsigned)gstat.vram_fb / 1024, (unsigned)(2048 - gstat.vram_fb / 1024));
+    loading_begin();
     audio_init("data");
+    loading_step(0.25f);
     game_init();
+    loading_end();
     mem_query(&dbg_mem);
     dlog_boot_done();
     dlog_mem("arranque");

@@ -878,6 +878,28 @@ def export_shop(G, out):
           (len(orders.get(0, [])), len(orders.get(1, [])), len(ignore)))
 
 
+LOADING_UI = ['Logo_v12', 'Progress1', 'Progress2', 'Outline']
+
+
+def export_loading(G, out):
+    """Pantalla de carga (screens/loadatascene): Background_Loading y, a 1/4, el logo y la barra (Progress2 de
+    fondo, Progress1 que se llena y el marco Outline). loading.spr: los 4 en ese orden."""
+    ui = find_sprites_by_name(G, ['Background_Loading'] + LOADING_UI)
+    if 'Background_Loading' in ui:
+        im, _, _ = sprite_full(ui['Background_Loading'])
+        write_bg(im, os.path.join(out, 'loading.tex'))
+    sh = SpriteSheet(FMT_T8)
+    for n in LOADING_UI:
+        o = ui.get(n)
+        if o is None:
+            sh.add_image(Image.new('RGBA', (1, 1)), 0, 0, 0.01, 0.01)
+            continue
+        r = o.read_typetree()['m_Rect']
+        sh.add_unity(o, scale=1000, maxpx=max(4, int(round(max(r['width'], r['height']) / 4))))
+    sh.write(os.path.join(out, 'loading.spr'))
+    print('  pantalla de carga: %d de %d graficos' % (sum(1 for n in LOADING_UI if n in ui), len(LOADING_UI)))
+
+
 def main():
     if len(sys.argv) < 3:
         print(__doc__)
@@ -886,6 +908,8 @@ def main():
     os.makedirs(out, exist_ok=True)
     print('Leyendo el APK...')
     G = Game(src)
+    print('Pantalla de carga...')
+    export_loading(G, out)
     print('Niveles, casillas, objetos e interfaz...')
     export_world(G, out)
     print('Fondos...')
