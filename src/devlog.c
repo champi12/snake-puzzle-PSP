@@ -358,6 +358,10 @@ static int last_state = -1;
 static struct { const char *where; unsigned used; } checkpoints[16];
 static int ncheck;
 
+/* tras cargar algo que se queda para siempre (la tienda la primera vez, el fin de la pantalla de carga): los puntos de
+ * control vuelven a empezar, para no avisar de una fuga que no lo es */
+void dlog_mem_reset(void) { ncheck = 0; }
+
 void dlog_mem(const char *where)
 {
     MemInfo *m = &dbg_mem;

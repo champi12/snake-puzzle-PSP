@@ -79,12 +79,16 @@ int sheet_load(Sheet *s, const char *path)
             t->pixels = m + off;
         t->bytes = sizes[i];
         off += (sizes[i] + 15) & ~15u;
+        int keep = gfx_ram_only;
+        if (gfx_ram_from_page >= 0 && i >= gfx_ram_from_page) gfx_ram_only = 1;
         be_tex_upload(t);
+        gfx_ram_only = keep;
     }
     return 0;
 }
 
 int gfx_ram_only;
+int gfx_ram_from_page = -1;
 
 void sheet_free(Sheet *s)
 {

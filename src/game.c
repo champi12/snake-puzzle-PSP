@@ -327,20 +327,27 @@ void game_init(void)
     loading_step(0.35f);
     if (meta_load("data/meta.bin")) dlog_error("falta data/meta.bin: sin tienda ni progreso");
     load_begin();
-    if (sheet_load(&world, "data/world.spr")) fatal_error("Falta data/world.spr");
-    load_end("world.spr", world.bytes);
-    loading_step(0.6f);
+    /* world.idx: indices de los sprites y, al final, la primera pagina de los menus (van a la RAM) */
+    int ui_page = -1;
     FILE *f = fopen("data/world.idx", "rb");
     if (f) {
         uint8_t b[2];
         if (fread(b, 1, 2, f) == 2) nwidx = b[0] | b[1] << 8;
+        int n = nwidx;
         if (nwidx > 160) nwidx = 160;
-        for (int i = 0; i < nwidx; i++) {
+        for (int i = 0; i < n; i++) {
             if (fread(b, 1, 2, f) != 2) break;
-            widx[i] = (int16_t)(b[0] | b[1] << 8);
+            if (i < 160) widx[i] = (int16_t)(b[0] | b[1] << 8);
         }
+        if (fread(b, 1, 2, f) == 2) ui_page = (int16_t)(b[0] | b[1] << 8);
         fclose(f);
     }
+    gfx_ram_from_page = ui_page;
+    if (sheet_load(&world, "data/world.spr")) fatal_error("Falta data/world.spr");
+    gfx_ram_from_page = -1;
+    load_end("world.spr", world.bytes);
+    dlog("world.spr: casillas y objetos en la VRAM, menus (desde la pagina %d) en la RAM", ui_page);
+    loading_step(0.6f);
     if (!font_ready) {
         load_begin();
         if (font_load("data/font.spr", "data/font.idx")) dlog_error("falta la fuente (data/font.spr)");
@@ -419,6 +426,7 @@ void loading_end(void)
     loading_step(1.0f);
     sheet_free(&load_sheet);
     tex_free(&load_tex);
+    dlog_mem_reset();
 }
 
 /* iconos y graficos de la tienda (shop.spr): solo cuando se entra en una pantalla que los usa, y en la RAM */
@@ -432,6 +440,7 @@ void shop_assets(void)
     if (sheet_load(&shop_sheet, "data/shop.spr") == 0) load_end("shop.spr (RAM)", shop_sheet.bytes);
     else dlog_error("no se pudo cargar data/shop.spr");
     gfx_ram_only = 0;
+    dlog_mem_reset();
 }
 
 /* ---------------------------------------------------------------- bucle */

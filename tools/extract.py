@@ -59,6 +59,8 @@ class SpriteSheet:
     """Hojas de sprites en el formato de src/gfx.h (ver write)."""
     def __init__(self, fmt=FMT_T8, maxw=512, maxh=512):
         self.items = []          # (imagen, ox, oy, w, h en unidades)
+        self.split = None        # si se pone: los items desde este indice van en paginas aparte (menus, a la RAM)
+        self.split_page = None   # primera pagina de ese grupo (tras pack)
         self.fmt = fmt
         self.maxw, self.maxh = maxw, maxh
 
@@ -84,10 +86,16 @@ class SpriteSheet:
         return self.add_image(small, ox, oy, crop.width / ppu, crop.height / ppu)
 
     def pack(self):
-        order = sorted(range(len(self.items)), key=lambda i: -self.items[i][0].height)
+        n = len(self.items)
+        sp = self.split if self.split is not None else n
+        order = (sorted(range(sp), key=lambda i: -self.items[i][0].height) +
+                 sorted(range(sp, n), key=lambda i: -self.items[i][0].height))
         pages, place = [], {}
         cur = None
         for i in order:
+            if i == (order[sp] if sp < n else -1):   # empieza el grupo de los menus: pagina nueva
+                cur = None
+                self.split_page = len(pages)
             im = self.items[i][0]
             w, h = im.width + 2, im.height + 2
             if w > self.maxw or h > self.maxh:
@@ -424,6 +432,9 @@ def export_world(G, out):
     levels = export_levels(G, out, world)
     objs = object_sprites(G, world)
     ui = find_sprites_by_name(G, UI_SPRITES)
+    # casillas y objetos del nivel en las primeras paginas (VRAM); la interfaz y los menus en paginas aparte, que el
+    # juego deja en la RAM (world.idx lleva al final la primera de esas paginas)
+    world.split = len(world.items)
     ui_ids = {}
     for n in UI_SPRITES:
         if n not in ui or UI_MAXPX.get(n, 1) == 0:
@@ -441,7 +452,8 @@ def export_world(G, out):
     with open(os.path.join(out, 'world.idx'), 'wb') as f:
         allidx = table + portal + stones + uitab
         f.write(struct.pack('<H', len(allidx)) + struct.pack('<%dh' % len(allidx), *allidx))
-    print('  world.spr: %d sprites, %d KB' % (len(world.items), size // 1024))
+        f.write(struct.pack('<h', world.split_page if world.split_page is not None else -1))
+    print('  world.spr: %d sprites, %d KB (paginas de menus desde la %s)' % (len(world.items), size // 1024, world.split_page))
     # pantalla de inicio (Background_Home) como fondo 0 del menu
     if 'Background_Home' in ui:
         im, _, _ = sprite_full(ui['Background_Home'])

@@ -80,8 +80,10 @@ void dlog_close(void);
 /* apartado MEMORIA: estado de la memoria en un punto (al volver al inicio, a la tienda...) y aviso de fuga si
  * crece respecto a la primera vez que se paso por el mismo punto */
 void dlog_mem(const char *where);
+void dlog_mem_reset(void);
 #else
 #define dlog_mem(w) ((void)0)
+#define dlog_mem_reset() ((void)0)
 #define dlog_path() "desactivado (version publica: compila con DEVLOG=1)"
 #define dlog_ok() 0
 #define dlog_init() ((void)0)
