@@ -217,11 +217,15 @@ static void home_draw(void)
     text_draw(241, 132, FONT_L, b, WHITE, 1);
     /* Snake Retro */
     s = pulse(home_sel == HM_RETRO);
-    wrect(UI_BTN_MINIGAME, 393, 178, 116 * s, 69 * s, WHITE);
+    int ro = retro_open(), rs = retro_secs();
+    wrect(UI_BTN_MINIGAME, 393, 178, 116 * s, 69 * s, ro ? WHITE : RGBA(130, 130, 130, 255));
     text_draw(393, 132, FONT_L, "Snake Retro", WHITE, 1);
-    wrect(UI_BASE_TIME, 393, 209, 58, 22, WHITE);
-    hms(b, sizeof(b), secs_to_midnight());
-    text_draw(393, 209 - text_height(FONT_S) / 2, FONT_S, b, WHITE, 1);
+    /* "Remaining in" / "Coming in" del original */
+    wrect(UI_BASE_TIME, 393, 210, 66, 28, WHITE);
+    text_draw(393, 197, FONT_S, T(ro ? "Quedan" : "Abre en"), WHITE, 1);
+    if (rs >= 86400) snprintf(b, sizeof(b), "%dd %02dh", rs / 86400, rs / 3600 % 24);
+    else hms(b, sizeof(b), rs);
+    text_draw(393, 209, FONT_S, b, WHITE, 1);
     /* botones redondos */
     if (p[HM_OFFER].on) {
         s = pulse(home_sel == HM_OFFER);
@@ -266,7 +270,10 @@ static void home_input(unsigned in)
         break;
     }
     case HM_PLAY: play_start(sv.cur_level, 0); break;
-    case HM_RETRO: classic_start(); break;
+    case HM_RETRO:
+        if (retro_open()) classic_start();
+        else { play_sfx(SFX_STOP); ui_message(T("Snake Retro abre los miercoles y los sabados"), 2.0f); }
+        break;
     case HM_OFFER: open_packs(limited_pack()); break;
     case HM_SKIN: shop_tab = 0; sel = 0; set_state(GS_SHOP); break;
     case HM_SETTINGS: sel = 0; confirm_reset = 0; set_state(GS_SETTINGS); break;
@@ -602,6 +609,14 @@ static void item_icon(int tab, int id, float x, float y, float w, float h, uint3
 }
 
 /* lo que hace falta para un articulo bloqueado: fichas (en vez de anuncios), progreso o evento */
+/* Precios en fichas (sustituyen a los anuncios y al dinero del original), pensados para que no sea ni muy barato ni
+ * imposible: 1 ficha por nivel nuevo superado (266 + el bucle) y comprarlo todo cuesta unas 400.
+ *   - cada anuncio del original (NeededAdWatchCount) = TOKENS_PER_AD fichas
+ *   - aspecto o fondo de paquete (pago real) = 20, pista o salto = 2, paquetes de 20 o mas con un 20% menos */
+#define TOKENS_PER_AD 4
+#define TOKENS_SKIN 20
+#define TOKENS_HINT 2
+
 static int item_need(int type, int id, const char **why)
 {
     const ShopItemDef *d = item_def(type, id);
@@ -615,7 +630,7 @@ static int item_need(int type, int id, const char **why)
     if (d && d->state == 6) {
         *why = T(d->event == 1 ? "Evento de Halloween" : d->event == 2 ? "Evento de Navidad" : "Evento especial");
         /* durante su evento se consigue con fichas, como los demas; fuera de el, bloqueado */
-        if (event_now() == d->event) return d->need ? d->need : 3;
+        if (event_now() == d->event) return (d->need ? d->need : 3) * TOKENS_PER_AD;
         return -1;
     }
     *why = NULL;
@@ -625,13 +640,13 @@ static int item_need(int type, int id, const char **why)
             *why = T("En PACKS (con fichas)");
             return -1;
         }
-        return 5;
+        return TOKENS_SKIN;
     }
     if (d->state == 4) {
         *why = T("Diario o fichas");
-        return d->need ? d->need : 3;
+        return (d->need ? d->need : 3) * TOKENS_PER_AD;
     }
-    return d->need ? d->need : 1;
+    return d->need ? d->need * TOKENS_PER_AD : 10;
 }
 
 /* ---- packs (ShopIAPController, BundleEvent / SummerBundle / PrideBundle / WorldCupBundle, LimitedOffer, SpecialBundle,
@@ -665,17 +680,16 @@ static int pack_valid(int k)
     return useful;
 }
 
-/* precio en fichas: 1 por pista o salto (el original da 1 pista por anuncio visto) y 5 por aspecto o fondo, con
- * descuento en los paquetes grandes como en la tienda original */
+/* precio de un paquete: TOKENS_HINT por pista o salto y TOKENS_SKIN por aspecto o fondo; 20% menos desde 20 */
 static int pack_price(int k)
 {
     int c = 0;
     for (int j = 0; j < meta.pack[k].n; j++) {
         int t = meta.pack[k].type[j], q = meta.pack[k].qty[j];
-        if (t == RW_HINT || t == RW_SKIP) c += q;
-        else if ((t == RW_SKIN && skin_exists(q)) || (t == RW_BG && bg_exists(q))) c += 5;
+        if (t == RW_HINT || t == RW_SKIP) c += q * TOKENS_HINT;
+        else if ((t == RW_SKIN && skin_exists(q)) || (t == RW_BG && bg_exists(q))) c += TOKENS_SKIN;
     }
-    if (c >= 10) c = c * 3 / 4;
+    if (c >= 20) c = c * 4 / 5;
     return c < 1 ? 1 : c;
 }
 
@@ -714,7 +728,7 @@ static void pack_text(int k, char *b, int n)
 
 /* ---- tienda de pago (ShopIAPController, screens/shopiap): tarjetas en fila; aqui se paga con fichas ----
  * Orden del original: paquete especial, los de temporada (Bajo el mar, Desfile arcoiris, Gol de oro, Ano Nuevo
- * Lunar), la oferta limitada y los de pistas (con la pista "gratis" por anuncio, que aqui cuesta 1 ficha). Los de
+ * Lunar), la oferta limitada y los de pistas (con la pista "gratis" por anuncio, que aqui cuesta 2 fichas). Los de
  * temporada comprados desaparecen (HideXBundle); los anuncios (No Ads) no existen en la PSP. */
 typedef struct { int pack, card; } Card;
 #define FREE_HINT -2
@@ -739,7 +753,7 @@ static void cards_build(void)
     }
 }
 
-static int card_price(const Card *c) { return c->pack == FREE_HINT ? 1 : pack_price(c->pack); }
+static int card_price(const Card *c) { return c->pack == FREE_HINT ? TOKENS_HINT : pack_price(c->pack); }
 
 static int pack_hints(int k)
 {
@@ -848,7 +862,7 @@ static void packs_buy(void)
         sv.hints++;
         play_sfx(SFX_REWARD);
         ui_message(T("+1 pista"), 1.5f);
-        dlog("TIENDA pista suelta por 1 ficha");
+        dlog("TIENDA pista suelta por %d fichas", price);
         game_save();
         return;
     }
@@ -891,7 +905,10 @@ static void item_label(int type, int id, char *b, int n)
             if (meta.daily[i].kind == 1 && meta.daily[i].value == id) { snprintf(b, n, T("Dia %d"), i + 1); return; }
     const char *why;
     int need = item_need(type, id, &why);
-    if (need > 0) snprintf(b, n, "%d/%d", type ? sv.bg_paid[id] : sv.skin_paid[id], need);
+    if (need > 0) {
+        int left = need - (type ? sv.bg_paid[id] : sv.skin_paid[id]);
+        snprintf(b, n, T("%d fichas"), left > 0 ? left : 0);
+    }
 }
 
 static int item_tag(int type, int id)
@@ -968,7 +985,10 @@ static void shop_draw(void)
     char b[64];
     if (equipped) snprintf(b, sizeof(b), "%s", T("EQUIPADO"));
     else if (owned) snprintf(b, sizeof(b), "%s", T(BTN_X " Equipar"));
-    else if (need > 0) snprintf(b, sizeof(b), T(BTN_X " Pagar ficha (%d/%d)"), shop_tab ? sv.bg_paid[id] : sv.skin_paid[id], need);
+    else if (need > 0) {
+        int left = need - (shop_tab ? sv.bg_paid[id] : sv.skin_paid[id]);
+        snprintf(b, sizeof(b), T(BTN_X " Comprar: %d fichas"), left > 0 ? left : 0);
+    }
     else snprintf(b, sizeof(b), "%s", T("Bloqueado"));
     text_draw(125, 172, FONT_M, b, WHITE, 1);
     if (!owned && why) text_draw(125, 192, FONT_S, why, RGBA(255, 220, 120, 255), 1);
@@ -1014,17 +1034,23 @@ static void shop_input(unsigned in)
         ui_message(why ? why : T("Bloqueado"), 1.5f);
         return;
     }
-    if (!sv.tokens) { play_sfx(SFX_STOP); ui_message(T("Sin fichas: gana 1 ficha por cada nivel nuevo superado"), 2.5f); return; }
-    sv.tokens--;
+    /* se compra de una vez; lo que se pago ficha a ficha en versiones anteriores (skin_paid/bg_paid) se descuenta */
     uint8_t *paid = shop_tab ? &sv.bg_paid[id] : &sv.skin_paid[id];
-    (*paid)++;
-    play_sfx(SFX_CLICK8);
-    if (*paid >= need) {
-        if (shop_tab) own_bg(id);
-        else own_skin(id);
-        dlog("TIENDA desbloqueado %s %d", shop_tab ? "fondo" : "aspecto", id);
-        reward_popup(shop_tab, id);
+    int left = need - *paid;
+    if (left < 0) left = 0;
+    if (sv.tokens < left) {
+        char m[96];
+        play_sfx(SFX_STOP);
+        snprintf(m, sizeof(m), T("Te faltan %d fichas: ganas 1 por cada nivel nuevo superado"), left - sv.tokens);
+        ui_message(m, 2.5f);
+        return;
     }
+    sv.tokens -= left;
+    *paid = 0;
+    if (shop_tab) own_bg(id);
+    else own_skin(id);
+    dlog("TIENDA desbloqueado %s %d por %d fichas", shop_tab ? "fondo" : "aspecto", id, left);
+    reward_popup(shop_tab, id);
     game_save();
 }
 

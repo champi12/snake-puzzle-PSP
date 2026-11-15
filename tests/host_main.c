@@ -90,6 +90,15 @@ int main(int argc, char **argv)
     host_shot("out/carga.ppm");
     game_init();
     loading_end();
+    if (getenv("HOST_HOME")) {   /* solo el inicio y la tienda (para probar fechas: HOST_DATE) */
+        frames(2, 0);
+        shot("inicio_fecha");
+        sv.tokens = 30;
+        ui_open_shop();
+        frames(2, 0);
+        shot("tienda_precios");
+        return 0;
+    }
     if (getenv("HOST_LEVELS")) {   /* solo capturas del primer momento de esos niveles: HOST_LEVELS="56 73 133" */
         char buf[256];
         snprintf(buf, sizeof(buf), "%s", getenv("HOST_LEVELS"));

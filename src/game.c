@@ -83,6 +83,35 @@ int event_now(void)
     return 0;
 }
 
+/* Snake Retro (modo clasico): en el original se abre y se cierra segun el servidor (HomeController.SetRetro:
+ * "Remaining in" / "Coming in"). En la PSP abre 2 dias por semana, los miercoles y los sabados (reloj de la consola). */
+static int day_of_week(int y, int m, int d)   /* 0 domingo .. 6 sabado (Sakamoto) */
+{
+    static const int t[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
+    if (m < 3) y--;
+    return (y + y / 4 - y / 100 + y / 400 + t[(m - 1) % 12] + d) % 7;
+}
+
+static int retro_day(int dow) { return dow == 3 || dow == 6; }
+
+int retro_open(void)
+{
+    int y, m, d;
+    plat_date(&y, &m, &d);
+    return retro_day(day_of_week(y, m, d));
+}
+
+int retro_secs(void)
+{
+    int y, m, d;
+    plat_date(&y, &m, &d);
+    int dow = day_of_week(y, m, d), left = 86400 - plat_secs_of_day();
+    if (retro_day(dow)) return left;           /* abierto: lo que queda de hoy */
+    int k = 1;
+    while (!retro_day((dow + k) % 7)) k++;
+    return (k - 1) * 86400 + left;             /* cerrado: hasta el proximo dia de apertura */
+}
+
 static const ShopItemDef *shop_def(int type, int id)
 {
     for (int i = 0; i < meta.nshop; i++)

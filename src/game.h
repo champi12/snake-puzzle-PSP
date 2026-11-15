@@ -114,7 +114,9 @@ int level_won(int idx);
 void level_set_won(int idx);
 int levels_won_count(void);
 int today_ymd(void);
-int event_now(void);               /* 0 nada, 1 Halloween, 2 Navidad, 3 Ano Nuevo Lunar */
+int event_now(void);
+int retro_open(void);              /* Snake Retro abierto hoy (miercoles y sabados) */
+int retro_secs(void);              /* segundos hasta que cierra (abierto) o abre (cerrado) */               /* 0 nada, 1 Halloween, 2 Navidad, 3 Ano Nuevo Lunar */
 int skin_available(int id);        /* 1 se puede elegir */
 int bg_available(int id);
 int skin_exists(int id);           /* 1 si hay data/skinNN.spr (el 29 de la 14.2.9 no tiene graficos) */

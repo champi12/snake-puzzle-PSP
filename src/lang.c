@@ -51,6 +51,10 @@ static const char *const tr[][2] = {
     {"En PACKS (con fichas)", "In PACKS (with tokens)"}, {"Oferta limitada", "Limited offer"},
     {"Ano Nuevo Lunar", "Lunar New Year"}, {"Bajo el mar", "Under the Sea"}, {"Desfile arcoiris", "Rainbow Parade"},
     {"Gol de oro", "Golden Goal"},
+    {BTN_X " Comprar: %d fichas", BTN_X " Buy: %d tokens"},
+    {"Te faltan %d fichas: ganas 1 por cada nivel nuevo superado", "You need %d more tokens: you earn 1 per new level"},
+    {"Quedan", "Ends in"}, {"Abre en", "Opens in"},
+    {"Snake Retro abre los miercoles y los sabados", "Snake Retro opens on Wednesdays and Saturdays"},
     {BTN_X " Cambiar   " BTN_O " Volver", BTN_X " Change   " BTN_O " Back"}, {"Partida borrada", "Save deleted"},
     /* premio */
     {"FONDO NUEVO!", "NEW SCENE!"}, {"ASPECTO NUEVO!", "NEW SKIN!"},
