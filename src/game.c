@@ -36,6 +36,7 @@ void set_state(int s)
     /* las ventanas que salen encima del juego empiezan siempre por su primer boton */
     if (s != gstate && (s == GS_WIN || s == GS_LOSE || s == GS_PAUSE)) ui_reset_sel();
     int prev = gstate;
+    if (s == GS_SHOP || s == GS_DAILY || s == GS_REWARD || s == GS_WIN) shop_assets();
     gstate = s;
     dbg_game.state = s;
     /* puntos de control de memoria: deben dar lo mismo cada vez que se pasa por ellos */
@@ -339,10 +340,12 @@ void game_init(void)
     load_begin();
     if (font_load("data/font.spr", "data/font.idx")) dlog_error("falta la fuente (data/font.spr)");
     else load_end("font.spr", 0);
+    /* la pantalla de inicio y la tienda son de los menus: en la RAM, para dejar la VRAM al juego (atlas, fuente,
+     * aspecto y fondo del nivel). La tienda se carga la primera vez que hace falta (shop_assets) */
     load_begin();
-    if (sheet_load(&shop_sheet, "data/shop.spr") == 0) load_end("shop.spr", shop_sheet.bytes);
-    load_begin();
-    if (bg_load(&home_tex, "data/home.tex") == 0) load_end("home.tex", home_tex.bytes);
+    gfx_ram_only = 1;
+    if (bg_load(&home_tex, "data/home.tex") == 0) load_end("home.tex (RAM)", home_tex.bytes);
+    gfx_ram_only = 0;
     nskins = count_files("data/skin%02d.spr", MAX_SKINS, &skin_files);
     nbgs = count_files("data/bg%02d.tex", MAX_BGS, &bg_files);
     srand(plat_us() ^ (unsigned)today_ymd());
@@ -361,6 +364,19 @@ void game_init(void)
          sv.skips, sv.tokens);
     shop_unlock_check();
     set_state(GS_HOME);
+}
+
+/* iconos y graficos de la tienda (shop.spr): solo cuando se entra en una pantalla que los usa, y en la RAM */
+void shop_assets(void)
+{
+    static int tried;
+    if (tried) return;
+    tried = 1;
+    load_begin();
+    gfx_ram_only = 1;
+    if (sheet_load(&shop_sheet, "data/shop.spr") == 0) load_end("shop.spr (RAM)", shop_sheet.bytes);
+    else dlog_error("no se pudo cargar data/shop.spr");
+    gfx_ram_only = 0;
 }
 
 /* ---------------------------------------------------------------- bucle */

@@ -84,6 +84,8 @@ int sheet_load(Sheet *s, const char *path)
     return 0;
 }
 
+int gfx_ram_only;
+
 void sheet_free(Sheet *s)
 {
     for (int i = 0; i < s->npages; i++) tex_free(&s->pages[i]);

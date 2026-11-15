@@ -249,15 +249,6 @@ static void home_draw(void)
     counters(SCR_H - 40);
     snprintf(b, sizeof(b), "%s   " BTN_X " %s", T(HM_NAME[home_sel]), T("Aceptar"));
     help(b);
-#if DEVLOG
-    {
-        /* para saber sin buscar archivos si el devlog se escribe y si el audio arranco */
-        char d[200];
-        snprintf(d, sizeof(d), "PRUEBAS | devlog: %s (%s)", dlog_path(), dlog_ok() ? "OK" : "SIN ESCRIBIR");
-        text_draw(SCR_W - 4, SCR_H - 44, FONT_S, d, RGBA(255, 230, 120, 255), 2);
-        text_draw(SCR_W - 4, SCR_H - 30, FONT_S, audio_status(), RGBA(255, 230, 120, 255), 2);
-    }
-#endif
 }
 
 static void home_input(unsigned in)

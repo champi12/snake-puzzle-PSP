@@ -91,6 +91,7 @@ void be_bind(const Tex *t);
 /* cuadrilatero texturizado: 4 vertices (x, y, u, v en texeles) en orden de tira de triangulos */
 void be_quad(const float *xyuv, uint32_t color);
 void be_fill(float x, float y, float w, float h, uint32_t color);
+extern int gfx_ram_only;      /* 1: las texturas que se carguen ahora se quedan en la RAM (menus) */
 int be_tex_upload(Tex *t);     /* la PSP copia a la VRAM si cabe */
 
 #endif

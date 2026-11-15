@@ -111,20 +111,81 @@ int save_load(void)
     return -2;
 }
 
-void game_save(void)
+static void write_save(const Save *d)
 {
     /* primero a un archivo aparte: si se apaga la consola a medias, el anterior sigue bien */
-    if (!save_path[0]) save_paths();
     FILE *f = fopen(tmp_path, "wb");
     if (!f) {
         dlog_error("no se pudo guardar la partida");
         return;
     }
-    fwrite(&sv, 1, sizeof(sv), f);
+    fwrite(d, 1, sizeof(*d), f);
     fclose(f);
     remove(save_path);
     rename(tmp_path, save_path);
 }
+
+#ifdef __psp__
+/* En la PSP escribir en la Memory Stick tarda ~70 ms (los TIRON de 83 ms del devlog al cobrar, comprar o superar un
+ * nivel): se guarda en un hilo aparte con una copia de la partida. */
+#include <pspkernel.h>
+static Save pending;
+static volatile int pending_n, busy;
+static SceUID save_sema = -1, save_lock = -1;
+
+static int save_thread(SceSize a, void *p)
+{
+    (void)a;
+    (void)p;
+    for (;;) {
+        sceKernelWaitSema(save_sema, 1, 0);
+        busy = 1;
+        while (pending_n) {
+            static Save copy;
+            sceKernelWaitSema(save_lock, 1, 0);
+            copy = pending;
+            pending_n = 0;
+            sceKernelSignalSema(save_lock, 1);
+            write_save(&copy);
+        }
+        busy = 0;
+    }
+    return 0;
+}
+
+void game_save(void)
+{
+    if (!save_path[0]) save_paths();
+    if (save_sema < 0) {
+        save_sema = sceKernelCreateSema("save", 0, 0, 1000, 0);
+        save_lock = sceKernelCreateSema("savelock", 0, 1, 1, 0);
+        SceUID th = sceKernelCreateThread("save", save_thread, 0x30, 0x2000, 0, 0);
+        if (save_sema < 0 || save_lock < 0 || th < 0 || sceKernelStartThread(th, 0, 0) < 0) {
+            save_sema = -1;
+            write_save(&sv);
+            return;
+        }
+    }
+    sceKernelWaitSema(save_lock, 1, 0);
+    pending = sv;
+    pending_n++;
+    sceKernelSignalSema(save_lock, 1);
+    sceKernelSignalSema(save_sema, 1);
+}
+
+/* al salir: que termine de escribir */
+void save_flush(void)
+{
+    for (int i = 0; i < 200 && (pending_n || busy); i++) sceKernelDelayThread(10000);
+}
+#else
+void game_save(void)
+{
+    if (!save_path[0]) save_paths();
+    write_save(&sv);
+}
+void save_flush(void) {}
+#endif
 
 int meta_load(const char *path)
 {

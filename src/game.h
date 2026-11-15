@@ -106,6 +106,7 @@ void game_input(unsigned in, unsigned held);
 void game_update(float dt);
 void game_draw(void);
 void game_save(void);
+void save_flush(void);           /* espera a que se termine de guardar (al salir) */
 void set_state(int s);
 
 /* progreso (game.c) */
@@ -127,6 +128,7 @@ int pos_level(int pos);            /* indice del nivel que se juega en la posici
 int pos_is_loop(int pos);
 int pos_number(int pos);           /* numero del nivel que se ensena (Level_N; en el bucle 271, 272...) */
 void pos_advance(int pos);         /* pos superado o saltado: sv.cur_level pasa a la siguiente */
+void shop_assets(void);           /* carga data/shop.spr (en la RAM) la primera vez que hace falta */
 void load_skin(int id);
 void load_bg(int id);
 void shop_unlock_check(void);      /* desbloqueos por progreso (SkinProgress) */

@@ -311,6 +311,7 @@ int main(int argc, char **argv)
     }
     dlog("Salida desde el menu HOME");
     game_save();
+    save_flush();
     dlog_close();
     audio_shutdown();
     gfx_shutdown();

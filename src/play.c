@@ -237,9 +237,12 @@ void play_update(float dt)
             int was_fall = steps.step[step_i].kind == STEP_FALL;
             shown_from = steps.step[step_i].st;
             step_i++;
-            /* el golpe solo al aterrizar: si cae al vacio o sobre pinchos solo suena el de perder */
-            if (!animating() && was_fall && !(steps.snake_fell && S.dead))
-                play_sfx(steps.snake_fell ? SFX_DROP : SFX_STONE_DROP);
+            /* al terminar la caida: golpe al aterrizar; si cae sobre pinchos o una sierra, su efecto (thorn); si cae
+             * al vacio, nada (luego suena el de perder) */
+            if (!animating() && was_fall) {
+                if (steps.snake_fell && S.dead == DEAD_TRAP) play_sfx(SFX_THORN);
+                else if (!(steps.snake_fell && S.dead)) play_sfx(steps.snake_fell ? SFX_DROP : SFX_STONE_DROP);
+            }
         }
         if (!animating()) step_t = 0;
     }

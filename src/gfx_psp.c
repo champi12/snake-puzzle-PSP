@@ -99,7 +99,7 @@ int be_tex_upload(Tex *t)
      * en el mismo hueco (ver gfx_vram_mark / gfx_vram_reset en main.c) */
     uint32_t need = (t->bytes + 63) & ~63u;
     uint32_t clut_bytes = t->fmt == TF_T8 ? 1024 : 0;
-    if (vram_top + need + clut_bytes <= VRAM_SIZE) {
+    if (!gfx_ram_only && vram_top + need + clut_bytes <= VRAM_SIZE) {
         uint8_t *dst = (uint8_t *)sceGeEdramGetAddr() + vram_top;
         if (clut_bytes) {
             /* la paleta se queda en la RAM (sceGuClutLoad la copia al GE); se mueven solo los indices */
@@ -121,8 +121,9 @@ int be_tex_upload(Tex *t)
     if (t->clut) sceKernelDcacheWritebackRange(t->clut, 1024);
     gstat.ram_tex += t->bytes;
     gstat.ram_tex_n++;
-    dlog("AVISO textura %dx%d sin sitio en VRAM (%u KB libres): se lee de la RAM", t->w, t->h,
-         (unsigned)((VRAM_SIZE - vram_top) / 1024));
+    if (!gfx_ram_only)
+        dlog("AVISO textura %dx%d sin sitio en VRAM (%u KB libres): se lee de la RAM", t->w, t->h,
+             (unsigned)((VRAM_SIZE - vram_top) / 1024));
     return 0;
 }
 
