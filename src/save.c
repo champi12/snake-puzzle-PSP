@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include "game.h"
 #include "devlog.h"
+#include "file.h"
+#include <stdlib.h>
 
 #define SAVE_MAGIC 0x4b4e5350u   /* "PSNK" */
 #define SAVE_VERSION 2
@@ -187,17 +189,25 @@ void game_save(void)
 void save_flush(void) {}
 #endif
 
+static int meta_parse(const uint8_t *b, int n);
+
 int meta_load(const char *path)
 {
     memset(&meta, 0, sizeof(meta));
     for (int i = 0; i < MAX_SKINS; i++) meta.skin_icon[i] = -1;
     for (int i = 0; i < MAX_BGS; i++) meta.bg_icon[i] = -1;
     for (int i = 0; i < 32; i++) meta.shop_ui[i] = -1;
-    FILE *f = fopen(path, "rb");
-    if (!f) return -1;
-    static uint8_t b[16384];
-    int n = fread(b, 1, sizeof(b), f);
-    fclose(f);
+    uint32_t fsz;
+    uint8_t *b = file_load(path, &fsz);
+    if (!b) return -1;
+    int n = (int)fsz;
+    int r = meta_parse(b, n);
+    free(b);
+    return r;
+}
+
+static int meta_parse(const uint8_t *b, int n)
+{
     /* META: el de la 2.3.4 (32 iconos); MET2: el de la 14.2.9 (iconos, paquetes con oferta, orden de la tienda, bucle) */
     int v2 = n >= 8 && !memcmp(b, "MET2", 4);
     if (n < 8 || (!v2 && memcmp(b, "META", 4))) return -2;

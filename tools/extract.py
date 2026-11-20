@@ -912,6 +912,27 @@ def export_loading(G, out):
     print('  pantalla de carga: %d de %d graficos' % (sum(1 for n in LOADING_UI if n in ui), len(LOADING_UI)))
 
 
+def compress_data(out):
+    """Comprime con zlib (cabecera SNZ1 + tamano) las texturas, los fondos y los .bin: el juego los descomprime al
+    cargarlos (src/file.c). De ~16 MB a menos de 6 en la Memory Stick, sin perder nada. Los MP3 ya van comprimidos."""
+    import zlib
+    before = after = 0
+    for fn in sorted(os.listdir(out)):
+        if not fn.endswith(('.spr', '.tex', '.bin')):
+            continue
+        p = os.path.join(out, fn)
+        with open(p, 'rb') as f:
+            raw = f.read()
+        if raw[:4] == b'SNZ1':
+            continue
+        z = zlib.compress(raw, 9)
+        before += len(raw)
+        after += len(z) + 8
+        with open(p, 'wb') as f:
+            f.write(b'SNZ1' + struct.pack('<I', len(raw)) + z)
+    print('  comprimido: %d KB -> %d KB' % (before // 1024, after // 1024))
+
+
 def main():
     if len(sys.argv) < 3:
         print(__doc__)
@@ -935,6 +956,8 @@ def main():
     print('Sonido...')
     export_audio(G, out)
     export_xmb(G, out)
+    print('Comprimiendo...')
+    compress_data(out)
     with open(os.path.join(out, 'VERSION'), 'w') as f:
         f.write('snake-puzzle-psp-data 1\n')
     print('Listo: datos en', out)

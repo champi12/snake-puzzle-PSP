@@ -7,12 +7,12 @@ SRC = ../src
 
 all: host_test host_shot
 
-host_test: host_test.c $(SRC)/level.c $(SRC)/logic.c
-	$(CC) $(CFLAGS) -o $@ $^
+host_test: host_test.c $(SRC)/level.c $(SRC)/logic.c $(SRC)/file.c
+	$(CC) $(CFLAGS) -o $@ $^ -lz
 
 host_shot: host_main.c gfx_host.c $(SRC)/gfx.c $(SRC)/level.c $(SRC)/logic.c $(SRC)/game.c $(SRC)/play.c \
-           $(SRC)/ui.c $(SRC)/classic.c $(SRC)/save.c $(SRC)/lang.c
-	$(CC) $(CFLAGS) -o $@ $^ -lm
+           $(SRC)/ui.c $(SRC)/classic.c $(SRC)/save.c $(SRC)/lang.c $(SRC)/file.c
+	$(CC) $(CFLAGS) -o $@ $^ -lm -lz
 
 check: host_test
 	./host_test $(DATA)/levels.bin

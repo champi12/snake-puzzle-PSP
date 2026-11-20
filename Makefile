@@ -1,7 +1,7 @@
 # Snake Puzzle para PSP - pspdev / PSPSDK
 TARGET = snake
 OBJS = src/main.o src/gfx.o src/gfx_psp.o src/level.o src/logic.o src/game.o src/play.o src/ui.o src/classic.o \
-       src/save.o src/audio_psp.o src/devlog.o src/lang.o
+       src/save.o src/audio_psp.o src/devlog.o src/lang.o src/file.o
 
 INCDIR = src
 CFLAGS = -O2 -G0 -g -Wall -ffast-math -fno-strict-aliasing -MMD -MP
@@ -13,7 +13,7 @@ CFLAGS += -DDEVLOG=$(DEVLOG)
 ANALOG ?= 0
 CFLAGS += -DANALOG=$(ANALOG)
 ASFLAGS = $(CFLAGS)
-LIBS = -lpspgu -lpspmp3 -lpspaudio -lpsputility -lpsppower -lpsprtc -lm
+LIBS = -lpspgu -lpspmp3 -lpspaudio -lpsputility -lpsppower -lpsprtc -lm -lz
 
 EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = Snake Puzzle

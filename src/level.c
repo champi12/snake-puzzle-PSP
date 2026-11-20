@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "level.h"
+#include "file.h"
 
 const int8_t DIR_DX[4] = {0, 0, -1, 1};
 const int8_t DIR_DY[4] = {1, -1, 0, 0};
@@ -15,19 +16,9 @@ static int s16(const uint8_t *p) { return (int16_t)(p[0] | p[1] << 8); }
 int levels_open(LevelPack *p, const char *path)
 {
     memset(p, 0, sizeof(*p));
-    FILE *f = fopen(path, "rb");
-    if (!f) return -1;
-    fseek(f, 0, SEEK_END);
-    long n = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    p->blob = malloc(n);
-    if (!p->blob || fread(p->blob, 1, n, f) != (size_t)n) {
-        fclose(f);
-        free(p->blob);
-        p->blob = NULL;
-        return -2;
-    }
-    fclose(f);
+    uint32_t n;
+    p->blob = file_load(path, &n);
+    if (!p->blob) return -1;
     p->size = n;
     if (n < 8 || memcmp(p->blob, "SNL1", 4)) return -3;
     p->count = u32(p->blob + 4);

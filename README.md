@@ -110,7 +110,7 @@ del juego, usa la mas nueva.
 | `music.mp3`, `music_lunar.mp3` | La musica original en MP3 (la decodifica el Media Engine) |
 | `ICON0.PNG`, `PIC1.PNG` | Icono y fondo del menu de la PSP (van dentro del EBOOT) |
 
-En total unos 12 MB en la Memory Stick.
+En total unos 6,5 MB en la Memory Stick: las texturas, los fondos y los .bin van comprimidos con zlib (cabecera SNZ1) y el juego los descomprime al cargarlos (src/file.c); los MP3 van tal cual.
 
 ## Como compilar
 

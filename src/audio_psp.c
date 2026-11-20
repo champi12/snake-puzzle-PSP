@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <malloc.h>
+#include "file.h"
 #include <unistd.h>
 #include "audio.h"
 #include "devlog.h"
@@ -185,30 +186,25 @@ int audio_init(const char *dir)
     if (!getcwd(base, sizeof(base))) strcpy(base, "ms0:/PSP/GAME/SNAKEPZL");
     char path[240];
     snprintf(path, sizeof(path), "%s/sfx.bin", dir);
-    FILE *f = fopen(path, "rb");
-    if (!f) {
+    uint32_t n = 0;
+    sfx_blob = file_load(path, &n);
+    if (!sfx_blob) {
         snprintf(path, sizeof(path), "%s/%s/sfx.bin", base, dir);
-        f = fopen(path, "rb");
+        sfx_blob = file_load(path, &n);
     }
-    if (f) {
-        fseek(f, 0, SEEK_END);
-        long n = ftell(f);
-        fseek(f, 0, SEEK_SET);
-        sfx_blob = memalign(16, n);
-        if (sfx_blob && fread(sfx_blob, 1, n, f) == (size_t)n && !memcmp(sfx_blob, "SFX1", 4)) {
-            uint8_t *b = sfx_blob;
-            int cnt = rd32(b + 4);
-            for (int i = 0; i < cnt && i < SFX_COUNT; i++) {
-                sfx_data[i] = (short *)(b + rd32(b + 8 + i * 8));
-                sfx_len[i] = rd32(b + 12 + i * 8);
-                if (sfx_len[i] > 0) sfx_valid++;
-            }
-            dlog("CARGA sfx.bin %6ld KB, %d efectos (%d con sonido)", n / 1024, cnt, sfx_valid);
-            if (!sfx_valid) dlog_error("sfx.bin no tiene sonidos: se genero sin libogg/libvorbis (ver actualizar.sh)");
-        } else
-            dlog_error("sfx.bin no valido");
-        fclose(f);
-    } else
+    if (sfx_blob && n >= 8 && !memcmp(sfx_blob, "SFX1", 4)) {
+        uint8_t *b = sfx_blob;
+        int cnt = rd32(b + 4);
+        for (int i = 0; i < cnt && i < SFX_COUNT; i++) {
+            sfx_data[i] = (short *)(b + rd32(b + 8 + i * 8));
+            sfx_len[i] = rd32(b + 12 + i * 8);
+            if (sfx_len[i] > 0) sfx_valid++;
+        }
+        dlog("CARGA sfx.bin %6u KB, %d efectos (%d con sonido)", (unsigned)(n / 1024), cnt, sfx_valid);
+        if (!sfx_valid) dlog_error("sfx.bin no tiene sonidos: se genero sin libogg/libvorbis (ver actualizar.sh)");
+    } else if (sfx_blob)
+        dlog_error("sfx.bin no valido");
+    else
         dlog_error("falta %s: el juego ira sin efectos", path);
     snprintf(music_path[0], sizeof(music_path[0]), "%s/%s/music.mp3", base, dir);
     snprintf(music_path[1], sizeof(music_path[1]), "%s/%s/music_lunar.mp3", base, dir);

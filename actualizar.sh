@@ -121,6 +121,16 @@ if [ -z "$GAME" ]; then
         V="${BEST%%|*}"
         echo "Juego: $GAME (version ${V#* })"
     fi
+    # en juego/ solo hace falta la version que se usa: las demas (que descomprimio este script) se borran para no
+    # ocupar cientos de MB. No se toca nada fuera de juego/ (ni el escritorio ni los .rar)
+    if [ -n "$GAME" ]; then
+        for f in juego/*.xapk juego/*/*.xapk juego/*.apk juego/*/*.apk; do
+            [ -f "$f" ] || continue
+            [ "$(realpath "$f")" = "$(realpath "$GAME")" ] && continue
+            echo "Borrando version vieja descomprimida: $f ($(du -h "$f" | cut -f1))"
+            rm -f "$f"
+        done
+    fi
 fi
 VER=$(cat tools/extract.py tools/levels.py tools/unityload.py | sha1sum | cut -c1-16)
 # data/ tambien se rehace si el juego elegido es otro (al pasar de la 2.3.4 a la 14.2.9, por ejemplo)

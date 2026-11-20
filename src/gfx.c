@@ -4,6 +4,7 @@
 #include <string.h>
 #include <math.h>
 #include <malloc.h>
+#include "file.h"
 #include "gfx.h"
 #include "devlog.h"
 
@@ -12,23 +13,7 @@ GfxStats gstat;
 static uint32_t rd32(const uint8_t *p) { return p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24; }
 static int rd16(const uint8_t *p) { return p[0] | p[1] << 8; }
 
-static void *load_file(const char *path, uint32_t *size)
-{
-    FILE *f = fopen(path, "rb");
-    if (!f) return NULL;
-    fseek(f, 0, SEEK_END);
-    long n = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    /* alineado a 64: la paleta y las texturas los lee el GE directamente */
-    void *m = memalign(64, n + 64);
-    if (m && fread(m, 1, n, f) != (size_t)n) {
-        free(m);
-        m = NULL;
-    }
-    fclose(f);
-    if (size) *size = n;
-    return m;
-}
+#define load_file file_load
 
 int sheet_load(Sheet *s, const char *path)
 {
